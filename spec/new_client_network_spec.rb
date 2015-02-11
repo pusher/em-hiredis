@@ -206,7 +206,7 @@ describe EM::Hiredis::NewClient do
   context 'db selection' do
     default_timeout 4
 
-    it 'should always execute db selection first' do
+    it 'should execute db selection first' do
       recording_server { |server|
         client = EM::Hiredis::NewClient.new('localhost', 6381)
         client.set('test', 'value').callback {
@@ -232,4 +232,6 @@ describe EM::Hiredis::NewClient do
       }
     end
   end
+
+
 end

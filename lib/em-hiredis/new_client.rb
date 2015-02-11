@@ -38,11 +38,18 @@ module EventMachine::Hiredis
       return @public_connected_deferrable = EM::DefaultDeferrable.new
     end
 
+    protected
+
+    # For overriding by tests to inject mock connections and avoid eventmachine
+    def em_connect
+      EM.connect(@host, @port, EMReqRespConnection)
+    end
+
     private
 
     def connect_internal
       puts "connect_internal"
-      @connection = EM.connect(@host, @port, EMReqRespConnection)
+      @connection = em_connect
       @connection.on(:connected) {
         on_connection_complete
       }
@@ -74,7 +81,7 @@ module EventMachine::Hiredis
 
     def on_connection_complete
       puts "on_connection_complete"
-      @connection.send_command(EM::DefaultDeferrable.new, 'select', @db).callback {
+      @connection.send_command(EM::DefaultDeferrable.new, 'select', [@db]).callback {
         on_initialisation_complete
       }.errback { |e|
         # Failure to select db counts as a connection failure
@@ -96,6 +103,7 @@ module EventMachine::Hiredis
       end
 
       @initialized = true
+      puts "Command queue size: #{@command_queue.size}"
       @command_queue.each { |df, command, args|
         @connection.send_command(df, command, args)
       }
@@ -115,6 +123,8 @@ module EventMachine::Hiredis
     end
 
     def process_command(command, args)
+      puts "process command #{command}"
+
       df = EM::DefaultDeferrable.new
       # Shortcut for defining the callback case with just a block
       df.callback { |result| yield(result) } if block_given?
