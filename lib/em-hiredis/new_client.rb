@@ -55,16 +55,23 @@ module EventMachine::Hiredis
       puts "connect_internal"
 
       @failed = false
+      @connected_deferrable = df = EM::DefaultDeferrable.new
 
-      @connection = em_connect
-      @connection.on(:connected) {
-        on_connection_complete
-      }
-      @connection.on(:disconnected) {
+      begin
+        @connection = em_connect
+        @connection.on(:connected) {
+          on_connection_complete
+        }
+        @connection.on(:disconnected) {
+          on_disconnected
+        }
+      rescue EventMachine::ConnectionError => e
+        # fails @connected_deferrable
+        puts e
         on_disconnected
-      }
+      end
 
-      return @connected_deferrable = EM::DefaultDeferrable.new
+      return df
     end
 
     def reconnect

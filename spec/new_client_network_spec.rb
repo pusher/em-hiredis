@@ -132,6 +132,39 @@ describe EM::Hiredis::NewClient do
           client.connect
         }
       end
+
+      it 'should attempt reconnect on DNS resolution failure' do
+        em {
+          client = EM::Hiredis::NewClient.new('not-a-host', 6381) # assumes not-a-host is... well, you get the idea
+
+          reconnect_count = 0
+          client.on(:reconnect_failed) { |count|
+            reconnect_count += 1
+          }
+          client.on(:failed) {
+            reconnect_count.should == 4
+            done
+          }
+
+          client.connect
+        }
+      end
+
+      it 'should recover from DNS resolution failure' do
+        recording_server { |server|
+          EM.stub(:connect).and_raise(EventMachine::ConnectionError.new)
+          client = EM::Hiredis::NewClient.new('localhost', 6381)
+
+          client.on(:reconnect_failed) {
+            EM.rspec_reset
+          }
+
+          client.connect
+          client.ping.callback {
+            done
+          }
+        }
+      end
     end
 
     context 'failing after initially being connected' do
