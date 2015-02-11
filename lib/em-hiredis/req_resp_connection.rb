@@ -10,6 +10,7 @@ module EventMachine::Hiredis
 
     def send_command(df, command, args)
       @response_queue.push(df)
+      puts "send #{command} #{args}"
       send_data(marshal(command, *args))
       return df
     end
@@ -25,6 +26,7 @@ module EventMachine::Hiredis
     def receive_data(data)
       @reader.feed(data)
       until (reply = @reader.gets) == false
+        puts "reply #{reply}"
         df = @response_queue.shift
         if df
           if RuntimeError === reply
