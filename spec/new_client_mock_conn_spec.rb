@@ -8,6 +8,7 @@ describe EM::Hiredis::NewClient do
     include EM::Hiredis::ReqRespConnection
 
     def send_command(df, command, args)
+      args = [args].flatten
       @expectations ||= []
       expectation = @expectations.shift
       if expectation
@@ -29,7 +30,7 @@ describe EM::Hiredis::NewClient do
     end
 
     def _expectations_met!
-      if @expectations.length > 0
+      if @expectations && @expectations.length > 0
         fail("Did not receive expected command #{@expectations.shift}")
       end
     end
@@ -83,6 +84,39 @@ describe EM::Hiredis::NewClient do
       client.ping(4)
 
       conn_b._connect
+    }
+  end
+
+  it 'should be possible to recover from a failed state' do
+    mock_connections(6) { |client, connections|
+      failing_connections = connections[0..4]
+      good_connection = connections[5]
+
+      # Connect and fail 5 times
+      client.connect
+      failing_connections.each { |c| c.unbind }
+
+      # We sohuld now be in the failed state
+      got_errback = false
+      client.ping.errback { |e|
+        e.message.should == 'Connection in failed state'
+        got_errback = true
+      }
+
+      good_connection._expect('select', 0) { |df| df.succeed }
+      good_connection._expect('ping') { |df| df.succeed }
+
+      # But after calling connect and completing the connection, we are functional again
+      client.connect
+      good_connection._connect
+
+      got_callback = false
+      client.ping.callback {
+        got_callback = true
+      }
+
+      got_errback.should == true
+      got_callback.should == true
     }
   end
 end

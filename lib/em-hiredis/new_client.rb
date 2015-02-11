@@ -21,12 +21,16 @@ module EventMachine::Hiredis
       @connected_deferrable = nil
 
       # returned from `connect`, this will only fail once retries have been
-      # exhausted, abstracting connection retries from the publiv
+      # exhausted, abstracting connection retries from the public
       @public_connected_deferrable = nil
 
       # Not just that we are connected, but that we have e.g. selected db
       # and are ready to process other commands on the connection
       @initialized = false
+
+      # We have failed as many automated reconnects as we are willing to try,
+      # and won't be usable again until `connect` is called from outside.
+      @failed = false
 
       # Commands received while we are not initialized, to be sent once we are
       @command_queue = []
@@ -49,6 +53,9 @@ module EventMachine::Hiredis
 
     def connect_internal
       puts "connect_internal"
+
+      @failed = false
+
       @connection = em_connect
       @connection.on(:connected) {
         on_connection_complete
@@ -65,6 +72,7 @@ module EventMachine::Hiredis
       emit(:reconnect_failed, @reconnect_attempt) if @reconnect_attempt > 0
 
       if @reconnect_attempt > 3
+        @failed = true
         if @public_connected_deferrable
           @public_connected_deferrable.fail
           @public_connected_deferrable = nil
@@ -129,7 +137,9 @@ module EventMachine::Hiredis
       # Shortcut for defining the callback case with just a block
       df.callback { |result| yield(result) } if block_given?
 
-      if @initialized
+      if @failed
+        df.fail(EM::Hiredis::RedisError.new('Connection in failed state'))
+      elsif @initialized
         @connection.send_command(df, command, args)
       else
         @command_queue << [df, command, args]

@@ -172,6 +172,23 @@ describe EM::Hiredis::NewClient do
           }
         }
       end
+
+      it 'should fail commands immediately when in a failed state' do
+        recording_server { |server|
+          client = EM::Hiredis::NewClient.new('localhost', 6381)
+          client.connect.callback {
+            server.stop
+            server.kill_connections
+
+            client.on(:failed) {
+              client.get('foo').errback { |e|
+                e.message.should == 'Connection in failed state'
+                done
+              }
+            }
+          }
+        }
+      end
     end
   end
 
