@@ -1,7 +1,11 @@
 module IRedisMock
   def self.start(replies = {})
-    @sig = EventMachine::start_server("127.0.0.1", 6381, Connection)
+    @sig = EventMachine::start_server("127.0.0.1", 6381, Connection) { |con|
+      @connections.push(con)
+    }
+    @connections = []
     @received = []
+    @connection_count = 0
     @replies = replies
     @paused = false
   end
@@ -14,11 +18,23 @@ module IRedisMock
     @received ||= []
   end
 
+  def self.connection_received
+    @connection_count += 1
+  end
+  def self.connection_count
+    @connection_count
+  end
+
   def self.pause
     @paused = true
   end
   def self.unpause
     @paused = false
+  end
+
+  def self.kill_connections
+    @connections.each { |c| c.close_connection }
+    @connections.clear
   end
 
   def self.paused
@@ -33,6 +49,10 @@ module IRedisMock
     def initialize
       @data = ""
       @parts = []
+    end
+
+    def post_init
+      IRedisMock.connection_received
     end
 
     def unbind
@@ -64,6 +84,8 @@ module IRedisMock
 
         if IRedisMock.replies.member?(command_line)
           reply = IRedisMock.replies[command_line]
+        elsif command_line == '_DISCONNECT'
+          close_connection
         else
           reply = "+OK"
         end

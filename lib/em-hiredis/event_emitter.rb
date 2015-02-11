@@ -5,6 +5,7 @@ module EventMachine::Hiredis
     end
 
     def emit(event, *args)
+      puts event.inspect
       _listeners[event].each { |l| l.call(*args) }
     end
 

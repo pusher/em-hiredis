@@ -58,8 +58,8 @@ module EventMachine
   end
 end
 
+require 'hiredis/reader'
 require 'em-hiredis/event_emitter'
-require 'em-hiredis/connection'
-require 'em-hiredis/base_client'
-require 'em-hiredis/client'
-require 'em-hiredis/pubsub_client'
+require 'em-hiredis/req_resp_connection'
+require 'em-hiredis/em_req_resp_connection'
+require 'em-hiredis/new_client'

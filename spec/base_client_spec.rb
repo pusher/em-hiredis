@@ -25,7 +25,7 @@ describe EM::Hiredis::BaseClient do
       }
     end
   end
-  
+
   it "should emit an event on reconnect failure, with the retry count (DNS resolution)" do
     # Assumes there is no redis server on 9999
     connect(1, "redis://localhost:6379/") do |redis|
