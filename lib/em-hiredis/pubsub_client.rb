@@ -1,5 +1,5 @@
 module EventMachine::Hiredis
-  class PubsubClient < BaseClient
+  class PubsubClient < NewClient
     PUBSUB_MESSAGES = %w{message pmessage subscribe unsubscribe psubscribe punsubscribe}.freeze
 
     PING_CHANNEL = '__em-hiredis-ping'

@@ -10,7 +10,7 @@ def connect_mock(timeout = 10, url = "redis://localhost:6381", server = nil, &bl
   end
 end
 
-describe EM::Hiredis::BaseClient do
+describe EM::Hiredis::Client do
   it "should ping after activity timeout reached" do
     connect_mock do |redis|
       redis.configure_inactivity_check(2, 1)

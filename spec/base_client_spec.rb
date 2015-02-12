@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe EM::Hiredis::BaseClient do
+describe EM::Hiredis::Client do
   it "should be able to connect to redis (required for all tests!)" do
     em {
       redis = EM::Hiredis.connect

@@ -18,9 +18,7 @@ module EventMachine
 
     def self.setup(uri = nil)
       uri = uri || ENV["REDIS_URL"] || "redis://127.0.0.1:6379/0"
-      client = Client.new
-      client.configure(uri)
-      client
+      Client.new(uri)
     end
 
     # Connects to redis and returns a client instance
@@ -64,3 +62,4 @@ require 'em-hiredis/req_resp_connection'
 require 'em-hiredis/em_req_resp_connection'
 require 'em-hiredis/new_client'
 require 'em-hiredis/client'
+require 'em-hiredis/pubsub_client'
