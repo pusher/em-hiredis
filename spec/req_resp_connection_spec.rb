@@ -120,7 +120,7 @@ describe EM::Hiredis::ReqRespConnection do
     dfs.each do |df|
       con.send_command(df, 'get', ['x'])
       df.should_receive(:fail) { |e|
-        e.class.should == EM::Hiredis::RedisError
+        e.class.should == EM::Hiredis::Error
         e.message.should == 'Redis connection lost'
       }
     end
