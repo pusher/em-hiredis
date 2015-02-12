@@ -92,6 +92,11 @@ module EventMachine::Hiredis
       process_command('select', db, &blk)
     end
 
+    def auth(password, &blk)
+      @password = password
+      process_command('auth', db, &blk)
+    end
+
     protected
 
     # For overriding by tests to inject mock connections and avoid eventmachine
@@ -131,15 +136,36 @@ module EventMachine::Hiredis
     end
 
     def initialise
-      if @db != 0
-        @connection.send_command(EM::DefaultDeferrable.new, 'select', @db).callback {
+      maybe_auth.callback {
+        maybe_select.callback {
           @sm.update_state(:connected)
         }.errback { |e|
           # Failure to select db counts as a connection failure
           @sm.update_state(:initialise_failed)
         }
+      }.errback { |e|
+        # Failure to auth counts as a connection failure
+        @sm.update_state(:initialise_failed)
+      }
+    end
+
+    def maybe_auth
+      if @password
+        @connection.send_command(EM::DefaultDeferrable.new, 'auth', @password)
       else
-        @sm.update_state(:connected)
+        df = EM::DefaultDeferrable.new
+        df.succeed
+        df
+      end
+    end
+
+    def maybe_select
+      if @db != 0
+        @connection.send_command(EM::DefaultDeferrable.new, 'select', @db)
+      else
+        df = EM::DefaultDeferrable.new
+        df.succeed
+        df
       end
     end
 
