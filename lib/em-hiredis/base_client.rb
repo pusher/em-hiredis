@@ -104,6 +104,10 @@ module EventMachine::Hiredis
       EM.connect(@host, @port, EMReqRespConnection)
     end
 
+    def em_timer(delay, &blk)
+      EM.add_timer(delay, &blk)
+    end
+
     private
 
     def connect_internal
@@ -131,7 +135,10 @@ module EventMachine::Hiredis
         @sm.update_state(:failed)
       else
         @reconnect_attempt += 1
-        @sm.update_state(:connecting)
+        @reconnect_timer = em_timer(EventMachine::Hiredis.reconnect_timeout) {
+          @reconnect_timer = nil
+          @sm.update_state(:connecting)
+        }
       end
     end
 

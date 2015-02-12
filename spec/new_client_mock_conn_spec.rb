@@ -54,6 +54,10 @@ describe EM::Hiredis::BaseClient do
       connection
     }
 
+    klass.send(:define_method, :em_timer) { |delay, &blk|
+      blk.call
+    }
+
     yield klass.new('redis://localhost:6379/9'), connections
 
     connections.each { |c| c._expectations_met! }
