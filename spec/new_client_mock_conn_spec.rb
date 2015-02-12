@@ -54,7 +54,7 @@ describe EM::Hiredis::BaseClient do
       connection
     }
 
-    yield klass.new('redis://localhost:6379/0'), connections
+    yield klass.new('redis://localhost:6379/9'), connections
 
     connections.each { |c| c._expectations_met! }
   end
@@ -64,11 +64,11 @@ describe EM::Hiredis::BaseClient do
       # Both connections expect to receive 'select' first
       # But pings 3 and 4 and issued between conn_a being disconnected
       # and conn_b completing its connection
-      conn_a._expect('select', 0) { |df| df.succeed }
+      conn_a._expect('select', 9) { |df| df.succeed }
       conn_a._expect('ping', 1) { |df| df.succeed }
       conn_a._expect('ping', 2) { |df| df.succeed }
 
-      conn_b._expect('select', 0) { |df| df.succeed }
+      conn_b._expect('select', 9) { |df| df.succeed }
       conn_b._expect('ping', 3) { |df| df.succeed }
       conn_b._expect('ping', 4) { |df| df.succeed }
 
@@ -106,7 +106,7 @@ describe EM::Hiredis::BaseClient do
           got_errback = true
         }
 
-        good_connection._expect('select', 0) { |df| df.succeed }
+        good_connection._expect('select', 9) { |df| df.succeed }
         good_connection._expect('ping') { |df| df.succeed }
 
         # But after calling connect and completing the connection, we are functional again
@@ -139,7 +139,7 @@ describe EM::Hiredis::BaseClient do
           got_errback = true
         }
 
-        good_connection._expect('select', 0) { |df| df.succeed }
+        good_connection._expect('select', 9) { |df| df.succeed }
         good_connection._expect('ping') { |df| df.succeed }
 
         # But after calling connect, we queue commands even though the connection
