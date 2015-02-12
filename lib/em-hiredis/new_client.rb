@@ -10,6 +10,7 @@ module EventMachine::Hiredis
   #     This event is passed number of failures so far (1,2,3...)
   class NewClient
     include EventEmitter
+    include EventMachine::Deferrable
 
     def initialize(uri)
       configure(uri)
@@ -19,10 +20,6 @@ module EventMachine::Hiredis
       # returned from `connect_internal`, this succeeds or fails with the current
       # connection attempt
       @connected_deferrable = nil
-
-      # returned from `connect`, this will only fail once retries have been
-      # exhausted, abstracting connection retries from the public
-      @public_connected_deferrable = nil
 
       # Not just that we are connected, but that we have e.g. selected db
       # and are ready to process other commands on the connection
@@ -51,7 +48,7 @@ module EventMachine::Hiredis
     def connect
       puts "connect"
       connect_internal
-      return @public_connected_deferrable = EM::DefaultDeferrable.new
+      return self
     end
 
     def reconnect
@@ -108,10 +105,7 @@ module EventMachine::Hiredis
 
       if @reconnect_attempt > 3
         @failed = true
-        if @public_connected_deferrable
-          @public_connected_deferrable.fail
-          @public_connected_deferrable = nil
-        end
+        set_deferred_status(:failed, EM::Hiredis::Error.new('Could not connect after 4 attempts'))
         emit(:failed)
       else
         @reconnect_attempt += 1
@@ -140,10 +134,7 @@ module EventMachine::Hiredis
         @connected_deferrable = nil
       end
 
-      if @public_connected_deferrable
-        @public_connected_deferrable.succeed
-        @public_connected_deferrable = nil
-      end
+      set_deferred_status(:succeeded)
 
       @initialized = true
       puts "Command queue size: #{@command_queue.size}"
@@ -157,6 +148,7 @@ module EventMachine::Hiredis
       puts "on_disconnected"
       @initialized = false
 
+      emit(:disconnected)
       if @connected_deferrable
         @connected_deferrable.fail
         @connected_deferrable = nil
@@ -173,7 +165,7 @@ module EventMachine::Hiredis
       df.callback { |result| yield(result) } if block_given?
 
       if @failed
-        df.fail(EM::Hiredis::RedisError.new('Connection in failed state'))
+        df.fail(EM::Hiredis::Error.new('Connection in failed state'))
       elsif @initialized
         @connection.send_command(df, command, args)
       else

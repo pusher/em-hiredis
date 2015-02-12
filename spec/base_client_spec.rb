@@ -36,18 +36,8 @@ describe EM::Hiredis::Client do
         done if expected == 3
       }
 
-      redis.reconnect!("redis://not-a-host:9999/")
-    end
-  end
-
-  it "should emit disconnected when the connection closes" do
-    connect do |redis|
-      redis.on(:connected) {
-        redis.on(:disconnected) {
-          done
-        }
-        redis.close_connection
-      }
+      redis.configure("redis://not-a-host:9999/")
+      redis.reconnect
     end
   end
 
@@ -61,17 +51,6 @@ describe EM::Hiredis::Client do
         error.class.should == EM::Hiredis::Error
         error.message.should == 'Could not connect after 4 attempts'
         events.should == [1,2,3,4]
-        done
-      }
-    end
-  end
-
-  it "should fail commands immediately when in failed state" do
-    connect(1, "redis://localhost:9999/") do |redis|
-      redis.fail
-      redis.get('foo').errback { |error|
-        error.class.should == EM::Hiredis::Error
-        error.message.should == 'Redis connection in failed state'
         done
       }
     end
@@ -106,7 +85,7 @@ describe EM::Hiredis::Client do
       }
       # Wait for first connection to complete
       redis.callback {
-        redis.reconnect_connection
+        redis.reconnect
       }
     end
   end

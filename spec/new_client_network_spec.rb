@@ -59,6 +59,22 @@ describe EM::Hiredis::NewClient do
     end
   end
 
+  context 'disconnection' do
+    default_timeout 4
+
+    it 'should emit :disconnected when the connection disconnects' do
+      recording_server { |server|
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
+        client.on(:disconnected) {
+          done
+        }
+        client.connect.callback {
+          server.kill_connections
+        }
+      }
+    end
+  end
+
   context 'reconnection' do
     default_timeout 4
 

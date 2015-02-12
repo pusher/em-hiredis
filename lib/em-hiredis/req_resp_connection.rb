@@ -30,7 +30,9 @@ module EventMachine::Hiredis
         df = @response_queue.shift
         if df
           if RuntimeError === reply
-            df.fail(EM::Hiredis::RedisError.new(reply.message))
+            e = EM::Hiredis::RedisError.new(reply.message)
+            e.redis_error = reply
+            df.fail(e)
           else
             df.succeed(reply)
           end
@@ -44,7 +46,7 @@ module EventMachine::Hiredis
     # EM::Connection callback
     def unbind
       puts "Unbind"
-      @response_queue.each { |df| df.fail(EM::Hiredis::RedisError.new('Redis connection lost')) }
+      @response_queue.each { |df| df.fail(EM::Hiredis::Error.new('Redis connection lost')) }
       @response_queue.clear
       emit(:disconnected)
     end
