@@ -12,6 +12,8 @@ module EventMachine::Hiredis
     include EventEmitter
     include EventMachine::Deferrable
 
+    attr_reader :host, :port, :password, :db
+
     TRANSITIONS = [
       [ :connect,                 :initial, :connecting ],
       [ :connect_failure,         :connecting, :connect_failed ],
