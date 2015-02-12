@@ -15,7 +15,7 @@ describe EM::Hiredis::NewClient do
 
     it 'should not connect on construction' do
       recording_server { |server|
-        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
         server.connection_count.should == 0
         done
       }
@@ -23,7 +23,7 @@ describe EM::Hiredis::NewClient do
 
     it 'should be connected when connect is called' do
       recording_server { |server|
-        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
         client.connect.callback {
           server.connection_count.should == 1
           done
@@ -35,7 +35,7 @@ describe EM::Hiredis::NewClient do
 
     it 'should issue select command before succeeding connection' do
       recording_server { |server|
-        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
         client.connect.callback {
           server.connection_count.should == 1
           server.received[0].should == 'select 0'
@@ -48,7 +48,7 @@ describe EM::Hiredis::NewClient do
 
     it 'should issue select command before emitting :connected' do
       recording_server { |server|
-        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
         client.on(:connected) {
           server.connection_count.should == 1
           server.received[0].should == 'select 0'
@@ -64,7 +64,7 @@ describe EM::Hiredis::NewClient do
 
     it 'should create a new connection if the existing one reports it has failed' do
       recording_server { |server|
-        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
         client.connect.callback {
           server.kill_connections
         }
@@ -77,7 +77,7 @@ describe EM::Hiredis::NewClient do
 
     it 'should emit both connected and reconnected' do
       recording_server { |server|
-        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
         client.connect.callback {
           server.kill_connections
 
@@ -103,7 +103,7 @@ describe EM::Hiredis::NewClient do
 
       it 'should make 4 attempts, emitting :reconnect_failed with a count' do
         em {
-          client = EM::Hiredis::NewClient.new('localhost', 9999) # assumes nothing listening on 9999
+          client = EM::Hiredis::NewClient.new('redis://localhost:9999') # assumes nothing listening on 9999
 
           expected = 1
           client.on(:reconnect_failed) { |count|
@@ -118,7 +118,7 @@ describe EM::Hiredis::NewClient do
 
       it 'after 4 unsuccessful attempts should emit :failed' do
         em {
-          client = EM::Hiredis::NewClient.new('localhost', 9999) # assumes nothing listening on 9999
+          client = EM::Hiredis::NewClient.new('redis://localhost:9999') # assumes nothing listening on 9999
 
           reconnect_count = 0
           client.on(:reconnect_failed) { |count|
@@ -135,7 +135,7 @@ describe EM::Hiredis::NewClient do
 
       it 'should attempt reconnect on DNS resolution failure' do
         em {
-          client = EM::Hiredis::NewClient.new('not-a-host', 6381) # assumes not-a-host is... well, you get the idea
+          client = EM::Hiredis::NewClient.new('redis://not-a-host:6381') # assumes not-a-host is... well, you get the idea
 
           reconnect_count = 0
           client.on(:reconnect_failed) { |count|
@@ -153,7 +153,7 @@ describe EM::Hiredis::NewClient do
       it 'should recover from DNS resolution failure' do
         recording_server { |server|
           EM.stub(:connect).and_raise(EventMachine::ConnectionError.new)
-          client = EM::Hiredis::NewClient.new('localhost', 6381)
+          client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
 
           client.on(:reconnect_failed) {
             EM.rspec_reset
@@ -172,7 +172,7 @@ describe EM::Hiredis::NewClient do
 
       it 'should make 4 attempts, emitting :reconnect_failed with a count' do
         recording_server { |server|
-          client = EM::Hiredis::NewClient.new('localhost', 6381)
+          client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
           client.connect.callback {
             server.stop
             server.kill_connections
@@ -189,7 +189,7 @@ describe EM::Hiredis::NewClient do
 
       it 'after 4 unsuccessful attempts should emit :failed' do
         recording_server { |server|
-          client = EM::Hiredis::NewClient.new('localhost', 6381)
+          client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
           client.connect.callback {
             server.stop
             server.kill_connections
@@ -209,7 +209,7 @@ describe EM::Hiredis::NewClient do
 
     it 'should fail commands immediately when in a failed state' do
       recording_server { |server|
-        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
         client.connect.callback {
           server.stop
           server.kill_connections
@@ -226,7 +226,7 @@ describe EM::Hiredis::NewClient do
 
     it 'should be possible to trigger reconnect on request' do
       recording_server { |server|
-        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
         client.connect.callback {
           client.on(:reconnected) {
             server.connection_count.should == 2
@@ -240,7 +240,7 @@ describe EM::Hiredis::NewClient do
 
     it 'should do something sensible???' do
       recording_server { |server|
-        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
         client.reconnect
         client.ping.callback {
           done
@@ -250,7 +250,7 @@ describe EM::Hiredis::NewClient do
 
     it 'should keep responses matched when connection is lost' do
       recording_server('get f' => '+hello') { |server|
-        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
         client.connect.callback {
           client.get('a')
           client.get('b').callback {
@@ -275,7 +275,7 @@ describe EM::Hiredis::NewClient do
 
     it 'should be able to send commands' do
       recording_server { |server|
-        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
         client.connect.callback {
           client.set('test', 'value').callback {
             done
@@ -286,7 +286,7 @@ describe EM::Hiredis::NewClient do
 
     it 'should queue commands called before connect is called' do
       recording_server { |server|
-        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
         client.set('test', 'value').callback {
           client.ping.callback {
             done
@@ -303,7 +303,7 @@ describe EM::Hiredis::NewClient do
 
     it 'should support alternative dbs' do
       recording_server { |server|
-        client = EM::Hiredis::NewClient.new('localhost', 6381, nil, 4)
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/4')
         client.connect.callback {
           server.received.should == ['select 4']
           done
@@ -313,7 +313,7 @@ describe EM::Hiredis::NewClient do
 
     it 'should execute db selection first' do
       recording_server { |server|
-        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
         client.set('test', 'value').callback {
           client.ping.callback {
             server.received.should == [
@@ -330,7 +330,7 @@ describe EM::Hiredis::NewClient do
 
     it 'should class db selection failure as a connection failure' do
       recording_server('select 0' => '-ERR no such db') { |server|
-        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
         client.connect.errback { |e|
           done
         }
@@ -339,7 +339,7 @@ describe EM::Hiredis::NewClient do
 
     it 'should re-select db on reconnection' do
       recording_server { |server|
-        client = EM::Hiredis::NewClient.new('localhost', 6381, nil, 4)
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/4')
         client.connect.callback {
           client.ping.callback {
             client.on(:reconnected) {
@@ -363,7 +363,7 @@ describe EM::Hiredis::NewClient do
 
     it 'should remember a change in the selected db' do
       recording_server { |server|
-        client = EM::Hiredis::NewClient.new('localhost', 6381, nil, 0)
+        client = EM::Hiredis::NewClient.new('redis://localhost:6381/0')
         client.connect.callback {
           client.select(4).callback {
             client.on(:reconnected) {

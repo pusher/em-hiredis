@@ -54,7 +54,7 @@ describe EM::Hiredis::NewClient do
       connection
     }
 
-    yield klass.new, connections
+    yield klass.new('redis://localhost:6379/0'), connections
 
     connections.each { |c| c._expectations_met! }
   end

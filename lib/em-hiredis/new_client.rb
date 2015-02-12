@@ -11,14 +11,8 @@ module EventMachine::Hiredis
   class NewClient
     include EventEmitter
 
-    def self.from_uri(uri)
-      client = NewClient.new
-      client.configure_uri(uri)
-      client
-    end
-
-    def initialize(host = 'localhost', port = 6379, password = nil, db = 0)
-      configure(host, port, password, db)
+    def initialize(uri)
+      configure(uri)
 
       @reconnect_attempt = 0
 
@@ -42,17 +36,16 @@ module EventMachine::Hiredis
       @command_queue = []
     end
 
-    def configure_uri(uri_string)
+    def configure(uri_string)
       uri = URI(uri_string)
 
       path = uri.path[1..-1]
       db = path.to_i # Empty path => 0
 
-      configure(uri.host, uri.port, uri.password, db)
-    end
-
-    def configure(host, port, password, db)
-      @host, @port, @password, @db = host, port, password, db
+      @host = uri.host
+      @port = uri.port
+      @password = uri.password
+      @db = db
     end
 
     def connect
