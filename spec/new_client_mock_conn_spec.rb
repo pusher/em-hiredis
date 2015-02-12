@@ -87,36 +87,75 @@ describe EM::Hiredis::NewClient do
     }
   end
 
-  it 'should be possible to recover from a failed state' do
-    mock_connections(6) { |client, connections|
-      failing_connections = connections[0..4]
-      good_connection = connections[5]
+  context 'failed state' do
+    default_timeout 2
 
-      # Connect and fail 5 times
-      client.connect
-      failing_connections.each { |c| c.unbind }
+    it 'should be possible to recover' do
+      mock_connections(6) { |client, connections|
+        failing_connections = connections[0..4]
+        good_connection = connections[5]
 
-      # We sohuld now be in the failed state
-      got_errback = false
-      client.ping.errback { |e|
-        e.message.should == 'Connection in failed state'
-        got_errback = true
+        # Connect and fail 5 times
+        client.connect
+        failing_connections.each { |c| c.unbind }
+
+        # We sohuld now be in the failed state
+        got_errback = false
+        client.ping.errback { |e|
+          e.message.should == 'Redis connection in failed state'
+          got_errback = true
+        }
+
+        good_connection._expect('select', 0) { |df| df.succeed }
+        good_connection._expect('ping') { |df| df.succeed }
+
+        # But after calling connect and completing the connection, we are functional again
+        client.connect
+        good_connection._connect
+
+        got_callback = false
+        client.ping.callback {
+          got_callback = true
+        }
+
+        got_errback.should == true
+        got_callback.should == true
       }
+    end
 
-      good_connection._expect('select', 0) { |df| df.succeed }
-      good_connection._expect('ping') { |df| df.succeed }
+    it 'should queue commands once attempting to recover' do
+      mock_connections(6) { |client, connections|
+        failing_connections = connections[0..4]
+        good_connection = connections[5]
 
-      # But after calling connect and completing the connection, we are functional again
-      client.connect
-      good_connection._connect
+        # Connect and fail 5 times
+        client.connect
+        failing_connections.each { |c| c.unbind }
 
-      got_callback = false
-      client.ping.callback {
-        got_callback = true
+        # We sohuld now be in the failed state
+        got_errback = false
+        client.ping.errback { |e|
+          e.message.should == 'Redis connection in failed state'
+          got_errback = true
+        }
+
+        good_connection._expect('select', 0) { |df| df.succeed }
+        good_connection._expect('ping') { |df| df.succeed }
+
+        # But after calling connect, we queue commands even though the connection
+        # is not yet complete
+        client.connect
+
+        got_callback = false
+        client.ping.callback {
+          got_callback = true
+        }
+
+        good_connection._connect
+
+        got_errback.should == true
+        got_callback.should == true
       }
-
-      got_errback.should == true
-      got_callback.should == true
-    }
+    end
   end
 end

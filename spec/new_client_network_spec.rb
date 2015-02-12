@@ -11,7 +11,7 @@ end
 
 describe EM::Hiredis::NewClient do
   context 'initial connections' do
-    default_timeout 4
+    default_timeout 1
 
     it 'should not connect on construction' do
       recording_server { |server|
@@ -60,7 +60,7 @@ describe EM::Hiredis::NewClient do
   end
 
   context 'disconnection' do
-    default_timeout 4
+    default_timeout 1
 
     it 'should emit :disconnected when the connection disconnects' do
       recording_server { |server|
@@ -76,7 +76,7 @@ describe EM::Hiredis::NewClient do
   end
 
   context 'reconnection' do
-    default_timeout 4
+    default_timeout 1
 
     it 'should create a new connection if the existing one reports it has failed' do
       recording_server { |server|
@@ -115,7 +115,7 @@ describe EM::Hiredis::NewClient do
     end
 
     context 'failing from initial connect attempt' do
-      default_timeout 4
+      default_timeout 1
 
       it 'should make 4 attempts, emitting :reconnect_failed with a count' do
         em {
@@ -184,7 +184,7 @@ describe EM::Hiredis::NewClient do
     end
 
     context 'failing after initially being connected' do
-      default_timeout 4
+      default_timeout 1
 
       it 'should make 4 attempts, emitting :reconnect_failed with a count' do
         recording_server { |server|
@@ -232,7 +232,7 @@ describe EM::Hiredis::NewClient do
 
           client.on(:failed) {
             client.get('foo').errback { |e|
-              e.message.should == 'Connection in failed state'
+              e.message.should == 'Redis connection in failed state'
               done
             }
           }
@@ -287,7 +287,7 @@ describe EM::Hiredis::NewClient do
   end
 
   context 'commands' do
-    default_timeout 4
+    default_timeout 1
 
     it 'should be able to send commands' do
       recording_server { |server|
@@ -315,7 +315,7 @@ describe EM::Hiredis::NewClient do
   end
 
   context 'db selection' do
-    default_timeout 4
+    default_timeout 1
 
     it 'should support alternative dbs' do
       recording_server { |server|

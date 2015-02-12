@@ -4,7 +4,8 @@ module ConnectionHelper
   def connect(timeout = 1, uri = nil)
     em(timeout) {
       redis = EM::Hiredis.connect(uri)
-      yield redis.connect
+      redis.flushdb
+      yield redis
     }
   end
 end
