@@ -1,10 +1,7 @@
 require 'digest/sha1'
 
 module EventMachine::Hiredis
-  class Client < NewClient
-    # def self.connect(host = 'localhost', port = 6379)
-    #   new(host, port).connect
-    # end
+  class Client < BaseClient
 
     def self.load_scripts_from(dir)
       Dir.glob("#{dir}/*.lua").each do |f|

@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'support/inprocess_redis_mock'
 
-describe EM::Hiredis::NewClient do
+describe EM::Hiredis::BaseClient do
   default_timeout 4
 
   class NonEMReqRespConnection
@@ -47,7 +47,7 @@ describe EM::Hiredis::NewClient do
     expected_connections.times { connections << NonEMReqRespConnection.new }
     connection_index = 0
 
-    klass = Class.new(EM::Hiredis::NewClient)
+    klass = Class.new(EM::Hiredis::BaseClient)
     klass.send(:define_method, :em_connect) {
       connection = connections[connection_index]
       connection_index += 1
