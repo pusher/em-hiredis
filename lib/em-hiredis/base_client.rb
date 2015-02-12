@@ -85,9 +85,9 @@ module EventMachine::Hiredis
 
     ## Commands which require extra logic
 
-    def select(db)
+    def select(db, &blk)
       @db = db
-      process_command('select', db)
+      process_command('select', db, &blk)
     end
 
     protected
