@@ -360,5 +360,29 @@ describe EM::Hiredis::NewClient do
         }
       }
     end
+
+    it 'should remember a change in the selected db' do
+      recording_server { |server|
+        client = EM::Hiredis::NewClient.new('localhost', 6381, nil, 0)
+        client.connect.callback {
+          client.select(4).callback {
+            client.on(:reconnected) {
+              client.ping.callback {
+                server.connection_count.should == 2
+                server.received.should == [
+                  'select 0',
+                  'select 4',
+                  'disconnect',
+                  'select 4',
+                  'ping'
+                ]
+                done
+              }
+            }
+            server.kill_connections
+          }
+        }
+      }
+    end
   end
 end

@@ -70,6 +70,13 @@ module EventMachine::Hiredis
       end
     end
 
+    ## Commands which require extra logic
+
+    def select(db)
+      @db = db
+      process_command('select', db)
+    end
+
     protected
 
     # For overriding by tests to inject mock connections and avoid eventmachine
