@@ -129,12 +129,16 @@ module EventMachine::Hiredis
     end
 
     def initialise
-      @connection.send_command(EM::DefaultDeferrable.new, 'select', @db).callback {
+      if @db != 0
+        @connection.send_command(EM::DefaultDeferrable.new, 'select', @db).callback {
+          @sm.update_state(:connected)
+        }.errback { |e|
+          # Failure to select db counts as a connection failure
+          @sm.update_state(:initialise_failed)
+        }
+      else
         @sm.update_state(:connected)
-      }.errback { |e|
-        # Failure to select db counts as a connection failure
-        @sm.update_state(:initialise_failed)
-      }
+      end
     end
 
     def initialise_success
