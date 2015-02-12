@@ -127,5 +127,4 @@ describe EM::Hiredis::ReqRespConnection do
 
     con.unbind
   end
-
 end

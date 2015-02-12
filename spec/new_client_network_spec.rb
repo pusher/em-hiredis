@@ -205,23 +205,68 @@ describe EM::Hiredis::NewClient do
           }
         }
       end
+    end
 
-      it 'should fail commands immediately when in a failed state' do
-        recording_server { |server|
-          client = EM::Hiredis::NewClient.new('localhost', 6381)
-          client.connect.callback {
-            server.stop
+    it 'should fail commands immediately when in a failed state' do
+      recording_server { |server|
+        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client.connect.callback {
+          server.stop
+          server.kill_connections
+
+          client.on(:failed) {
+            client.get('foo').errback { |e|
+              e.message.should == 'Connection in failed state'
+              done
+            }
+          }
+        }
+      }
+    end
+
+    it 'should be possible to trigger reconnect on request' do
+      recording_server { |server|
+        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client.connect.callback {
+          client.on(:reconnected) {
+            server.connection_count.should == 2
+            done
+          }
+
+          client.reconnect
+        }
+      }
+    end
+
+    it 'should do something sensible???' do
+      recording_server { |server|
+        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client.reconnect
+        client.ping.callback {
+          done
+        }
+      }
+    end
+
+    it 'should keep responses matched when connection is lost' do
+      recording_server('get f' => '+hello') { |server|
+        client = EM::Hiredis::NewClient.new('localhost', 6381)
+        client.connect.callback {
+          client.get('a')
+          client.get('b').callback {
+            client.get('c')
             server.kill_connections
-
-            client.on(:failed) {
-              client.get('foo').errback { |e|
-                e.message.should == 'Connection in failed state'
+            client.get('d')
+            client.get('e')
+            client.on(:reconnected) {
+              client.get('f').callback { |v|
+                v.should == 'hello'
                 done
               }
             }
           }
         }
-      end
+      }
     end
   end
 
@@ -256,6 +301,16 @@ describe EM::Hiredis::NewClient do
   context 'db selection' do
     default_timeout 4
 
+    it 'should support alternative dbs' do
+      recording_server { |server|
+        client = EM::Hiredis::NewClient.new('localhost', 6381, nil, 4)
+        client.connect.callback {
+          server.received.should == ['select 4']
+          done
+        }
+      }
+    end
+
     it 'should execute db selection first' do
       recording_server { |server|
         client = EM::Hiredis::NewClient.new('localhost', 6381)
@@ -281,7 +336,29 @@ describe EM::Hiredis::NewClient do
         }
       }
     end
+
+    it 'should re-select db on reconnection' do
+      recording_server { |server|
+        client = EM::Hiredis::NewClient.new('localhost', 6381, nil, 4)
+        client.connect.callback {
+          client.ping.callback {
+            client.on(:reconnected) {
+              client.ping.callback {
+                server.connection_count.should == 2
+                server.received.should == [
+                  'select 4',
+                  'ping',
+                  'disconnect',
+                  'select 4',
+                  'ping'
+                ]
+                done
+              }
+            }
+            server.kill_connections
+          }
+        }
+      }
+    end
   end
-
-
 end

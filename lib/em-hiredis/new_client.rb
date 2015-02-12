@@ -42,6 +42,15 @@ module EventMachine::Hiredis
       return @public_connected_deferrable = EM::DefaultDeferrable.new
     end
 
+    def reconnect
+      puts "reconnect"
+      if @connection
+        @connection.close_connection
+      else
+        connect
+      end
+    end
+
     protected
 
     # For overriding by tests to inject mock connections and avoid eventmachine
@@ -74,8 +83,8 @@ module EventMachine::Hiredis
       return df
     end
 
-    def reconnect
-      puts "reconnect"
+    def reconnect_internal
+      puts "reconnect_internal"
       emit(:reconnect_failed, @reconnect_attempt) if @reconnect_attempt > 0
 
       if @reconnect_attempt > 3
@@ -134,7 +143,7 @@ module EventMachine::Hiredis
         @connected_deferrable = nil
       end
 
-      reconnect
+      reconnect_internal
     end
 
     def process_command(command, *args)

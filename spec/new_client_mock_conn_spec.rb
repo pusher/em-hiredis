@@ -15,7 +15,7 @@ describe EM::Hiredis::NewClient do
         command.to_s.should == expectation[:command]
         args.should == expectation[:args]
 
-        expectation[:blk].call(df)
+        expectation[:blk].call(df) if expectation[:blk]
       else
         fail("Unexpected command #{command}, #{args}")
       end
