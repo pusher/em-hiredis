@@ -19,11 +19,11 @@ module EventMachine::Hiredis
       [ :connect_failure,         :connecting, :connect_failed ],
       [ :retry_connect,           :connect_failed, :connecting ],
       [ :connect_perm_failure,    :connect_failed, :failed ],
-      [ :initialise,              :connecting, :initialising ],
-      [ :initialise_failure,      :initialising, :initialise_failed ],
-      [ :retry_initialise,        :initialise_failed, :connecting ],
-      [ :initialise_perm_failure, :initialise_failed, :failed ],
-      [ :initialise_success,      :initialising, :connected ],
+      [ :setup,                   :connecting, :initialising ],
+      [ :setup_failure,           :initialising, :setup_failed ],
+      [ :retry_setup,             :setup_failed, :connecting ],
+      [ :setup_perm_failure,      :setup_failed, :failed ],
+      [ :setup_success,           :initialising, :connected ],
       [ :disconnected,            :connected, :disconnected ],
       [ :reconnect,               :disconnected, :connecting ],
       [ :recover,                 :failed, :connecting ],
@@ -44,16 +44,16 @@ module EventMachine::Hiredis
       @sm.on(:retry_connect) { connect_internal }
       @sm.on(:reconnect) { connect_internal }
       @sm.on(:recover) { connect_internal }
-      @sm.on(:retry_initialise) { connect_internal }
+      @sm.on(:retry_setup) { connect_internal }
 
       @sm.on(:connect_failure) { maybe_reconnect }
 
-      @sm.on(:initialise) { initialise }
-      @sm.on(:initialise_success) { initialise_success }
-      @sm.on(:initialise_failure) { initialise_failure }
+      @sm.on(:setup) { setup }
+      @sm.on(:setup_success) { setup_success }
+      @sm.on(:setup_failure) { setup_failure }
 
       @sm.on(:connect_perm_failure) { perm_failure }
-      @sm.on(:initialise_perm_failure) { perm_failure }
+      @sm.on(:setup_perm_failure) { perm_failure }
 
       @sm.on(:disconnected) { disconnected }
     end
@@ -142,17 +142,17 @@ module EventMachine::Hiredis
       end
     end
 
-    def initialise
+    def setup
       maybe_auth.callback {
         maybe_select.callback {
           @sm.update_state(:connected)
         }.errback { |e|
           # Failure to select db counts as a connection failure
-          @sm.update_state(:initialise_failed)
+          @sm.update_state(:setup_failed)
         }
       }.errback { |e|
         # Failure to auth counts as a connection failure
-        @sm.update_state(:initialise_failed)
+        @sm.update_state(:setup_failed)
       }
     end
 
@@ -176,7 +176,7 @@ module EventMachine::Hiredis
       end
     end
 
-    def initialise_success
+    def setup_success
       emit(:connected)
       if @reconnect_attempt > 0
         emit(:reconnected)
@@ -191,7 +191,7 @@ module EventMachine::Hiredis
       @command_queue.clear
     end
 
-    def initialise_failure
+    def setup_failure
       # Close the "failed" connection, but first unsubscribe from its eventemitter
       # because we are treating it as "already closed"
       @connection.remove_all_listeners(:disconnected)
