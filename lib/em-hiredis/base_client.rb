@@ -42,18 +42,18 @@ module EventMachine::Hiredis
 
       @sm.on(:connect) { connect_internal }
       @sm.on(:retry_connect) { connect_internal }
-      @sm.on(:connect_failure) { maybe_reconnect }
-      @sm.on(:connect_perm_failure) { perm_failure }
-
       @sm.on(:reconnect) { connect_internal }
       @sm.on(:recover) { connect_internal }
+      @sm.on(:retry_initialise) { connect_internal }
+
+      @sm.on(:connect_failure) { maybe_reconnect }
 
       @sm.on(:initialise) { initialise }
       @sm.on(:initialise_success) { initialise_success }
       @sm.on(:initialise_failure) { initialise_failure }
-      @sm.on(:initialise_perm_failure) { perm_failure }
 
-      @sm.on(:retry_initialise) { connect_internal }
+      @sm.on(:connect_perm_failure) { perm_failure }
+      @sm.on(:initialise_perm_failure) { perm_failure }
 
       @sm.on(:disconnected) { disconnected }
     end
