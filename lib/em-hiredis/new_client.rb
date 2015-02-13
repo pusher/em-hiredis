@@ -129,7 +129,7 @@ module EventMachine::Hiredis
         elsif delay == :immediate
           @sm.update_state(:connecting)
         else
-          raise "Unrecognised delay sepcifier #{delay}"
+          raise "Unrecognised delay specifier #{delay}"
         end
       end
     end
