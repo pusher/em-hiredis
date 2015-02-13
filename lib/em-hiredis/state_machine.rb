@@ -12,22 +12,18 @@ module EventMachine::Hiredis
       @all_states = Set.new([:initial])
     end
 
-    def add_transition(name, from, to)
-      existing = @transitions.find { |_, v| v == [from, to] }
-      if existing
-        raise "Duplicate transition #{from}, #{to}, already exists as #{existing.first}"
-      end
-
+    def transition(from, to)
       @all_states.add(from)
       @all_states.add(to)
-      @transitions[name] = [from, to]
-    end
+      @transitions[from] ||= []
+      @transitions[from].push(to)
+     end
 
     def update_state(to)
       raise "Invalid state #{to}" unless @all_states.include?(to)
 
-      transition = @transitions.find { |_, v| v == [@state, to] }
-      raise "No such transition #{@state} #{to}" unless transition
+      allowed = @transitions[@state].include?(to)
+      raise "No such transition #{@state} #{to}" unless allowed
 
       old_state = @state
       @state = to

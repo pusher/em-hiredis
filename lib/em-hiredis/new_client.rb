@@ -15,15 +15,15 @@ module EventMachine::Hiredis
     attr_reader :host, :port, :password, :db
 
     TRANSITIONS = [
-      [ :connect,                 :initial, :connecting ],
-      [ :connect_failure,         :connecting, :disconnected ],
-      [ :setup,                   :connecting, :setting_up ],
-      [ :setup_failure,           :setting_up, :disconnected ],
-      [ :setup_success,           :setting_up, :connected ],
-      [ :disconnected,            :connected, :disconnected ],
-      [ :reconnect,               :disconnected, :connecting ],
-      [ :perm_failure,            :disconnected, :failed ],
-      [ :recover,                 :failed, :connecting ],
+      [ :initial, :connecting ],
+      [ :connecting, :disconnected ],
+      [ :connecting, :setting_up ],
+      [ :setting_up, :disconnected ],
+      [ :setting_up, :connected ],
+      [ :connected, :disconnected ],
+      [ :disconnected, :connecting ],
+      [ :disconnected, :failed ],
+      [ :failed, :connecting ],
     ]
 
     def initialize(uri)
@@ -35,7 +35,7 @@ module EventMachine::Hiredis
       @command_queue = []
 
       @sm = StateMachine.new
-      TRANSITIONS.each { |t| @sm.add_transition(*t) }
+      TRANSITIONS.each { |t| @sm.transition(*t) }
 
       @sm.on(:connecting, &method(:connect_internal))
       @sm.on(:setting_up, &method(:setup))
