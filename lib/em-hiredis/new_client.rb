@@ -37,19 +37,12 @@ module EventMachine::Hiredis
       @sm = StateMachine.new
       TRANSITIONS.each { |t| @sm.add_transition(*t) }
 
-      @sm.on(:connect) { connect_internal }
-      @sm.on(:reconnect) { connect_internal }
-      @sm.on(:recover) { connect_internal }
-
-      @sm.on(:connect_failure) { maybe_reconnect(:delayed) }
-
-      @sm.on(:setup) { setup }
-      @sm.on(:setup_success) { setup_success }
-      @sm.on(:setup_failure) { maybe_reconnect(:immediate) }
-
-      @sm.on(:perm_failure) { perm_failure }
-
-      @sm.on(:disconnected) { disconnected }
+      @sm.on(:connecting, &method(:connect_internal))
+      @sm.on(:setting_up, &method(:setup))
+      @sm.on(:connected, &method(:setup_success))
+      @sm.on(:setup_success, &method(:setup_success))
+      @sm.on(:disconnected, &method(:disconnected))
+      @sm.on(:failed, &method(:perm_failure))
     end
 
     def configure(uri_string)
@@ -104,7 +97,7 @@ module EventMachine::Hiredis
 
     private
 
-    def connect_internal
+    def connect_internal(prev_state)
       begin
         @connection = em_connect
         @connection.on(:connected) {
@@ -139,7 +132,7 @@ module EventMachine::Hiredis
       end
     end
 
-    def setup
+    def setup(prev_state)
       maybe_auth.callback {
         maybe_select.callback {
           @sm.update_state(:connected)
@@ -169,7 +162,7 @@ module EventMachine::Hiredis
       end
     end
 
-    def setup_success
+    def setup_success(prev_state)
       emit(:connected)
       if @reconnect_attempt > 0
         emit(:reconnected)
@@ -184,7 +177,7 @@ module EventMachine::Hiredis
       @command_queue.clear
     end
 
-    def perm_failure
+    def perm_failure(prev_state)
       emit(:failed)
       set_deferred_status(:failed, EM::Hiredis::Error.new('Could not connect after 4 attempts'))
 
@@ -194,9 +187,18 @@ module EventMachine::Hiredis
       @command_queue.clear
     end
 
-    def disconnected
-      emit(:disconnected)
-      maybe_reconnect(:immediate)
+    def disconnected(prev_state)
+      delay = case prev_state
+      when :connected
+        emit(:disconnected)
+        :immediate
+      when :connecting
+        :delayed
+      when :setting_up
+        :delayed
+      end
+
+      maybe_reconnect(delay)
     end
 
     def process_command(command, *args, &blk)

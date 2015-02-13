@@ -29,8 +29,9 @@ module EventMachine::Hiredis
       transition = @transitions.find { |_, v| v == [@state, to] }
       raise "No such transition #{@state} #{to}" unless transition
 
+      old_state = @state
       @state = to
-      emit(transition.first)
+      emit(to, old_state)
     end
   end
 end
