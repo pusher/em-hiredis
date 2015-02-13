@@ -15,14 +15,23 @@ module EventMachine::Hiredis
     attr_reader :host, :port, :password, :db
 
     TRANSITIONS = [
+      # first connect call
       [ :initial, :connecting ],
+      # TCP connect fails
       [ :connecting, :disconnected ],
+      # TCP connection up, need to auth and select db before processing any commands
       [ :connecting, :setting_up ],
+      # auth and db select do not succeed (rejected, connection failure, etc...)
       [ :setting_up, :disconnected ],
+      # connection is ready to process commands
       [ :setting_up, :connected ],
+      # connection lost
       [ :connected, :disconnected ],
+      # attempting automatic reconnect
       [ :disconnected, :connecting ],
+      # all automatic reconnection attempts failed
       [ :disconnected, :failed ],
+      # manual call of reconnect after failure
       [ :failed, :connecting ],
     ]
 
