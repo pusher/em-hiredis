@@ -19,12 +19,12 @@ module EventMachine::Hiredis
       [ :connect_failure,         :connecting, :connect_failed ],
       [ :retry_connect,           :connect_failed, :connecting ],
       [ :connect_perm_failure,    :connect_failed, :failed ],
-      [ :setup,                   :connecting, :initialising ],
-      [ :setup_failure,           :initialising, :setup_failed ],
-      [ :setup_interrupted,       :initialising, :disconnected ],
+      [ :setup,                   :connecting, :setting_up ],
+      [ :setup_failure,           :setting_up, :setup_failed ],
+      [ :setup_interrupted,       :setting_up, :disconnected ],
       [ :retry_setup,             :setup_failed, :connecting ],
       [ :setup_perm_failure,      :setup_failed, :failed ],
-      [ :setup_success,           :initialising, :connected ],
+      [ :setup_success,           :setting_up, :connected ],
       [ :disconnected,            :connected, :disconnected ],
       [ :reconnect,               :disconnected, :connecting ],
       [ :recover,                 :failed, :connecting ],
@@ -116,7 +116,7 @@ module EventMachine::Hiredis
       begin
         @connection = em_connect
         @connection.on(:connected) {
-          @sm.update_state(:initialising)
+          @sm.update_state(:setting_up)
         }
         @connection.on(:connection_failed) {
           @sm.update_state(:connect_failed)
