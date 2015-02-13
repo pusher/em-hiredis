@@ -168,9 +168,7 @@ module EventMachine::Hiredis
       if @password
         @connection.send_command(EM::DefaultDeferrable.new, 'auth', @password)
       else
-        df = EM::DefaultDeferrable.new
-        df.succeed
-        df
+        noop
       end
     end
 
@@ -178,9 +176,7 @@ module EventMachine::Hiredis
       if @db != 0
         @connection.send_command(EM::DefaultDeferrable.new, 'select', @db)
       else
-        df = EM::DefaultDeferrable.new
-        df.succeed
-        df
+        noop
       end
     end
 
@@ -242,6 +238,12 @@ module EventMachine::Hiredis
     end
 
     alias_method :method_missing, :process_command
+
+    def noop
+      df = EM::DefaultDeferrable.new
+      df.succeed
+      df
+    end
 
   end
 end
