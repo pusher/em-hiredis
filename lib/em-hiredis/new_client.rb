@@ -75,13 +75,15 @@ module EventMachine::Hiredis
     ## Commands which require extra logic
 
     def select(db, &blk)
-      @db = db
-      process_command('select', db, &blk)
+      process_command('select', db, &blk).callback {
+        @db = db
+      }
     end
 
     def auth(password, &blk)
-      @password = password
-      process_command('auth', db, &blk)
+      process_command('auth', db, &blk).callback {
+        @password = password
+      }
     end
 
     protected
