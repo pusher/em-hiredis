@@ -5,6 +5,7 @@ module EventMachine::Hiredis
 
     def initialize
       super
+      @reader = ::Hiredis::Reader.new
       @response_queue = []
     end
 
@@ -17,8 +18,6 @@ module EventMachine::Hiredis
 
     # EM::Connection callback
     def connection_completed
-      puts "Connection completed"
-      @reader = ::Hiredis::Reader.new
       emit(:connected)
     end
 
