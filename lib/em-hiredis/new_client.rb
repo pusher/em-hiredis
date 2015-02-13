@@ -48,7 +48,7 @@ module EventMachine::Hiredis
 
       @sm.on(:connecting, &method(:connect_internal))
       @sm.on(:setting_up, &method(:setup))
-      @sm.on(:connected, &method(:setup_success))
+      @sm.on(:connected, &method(:connected))
       @sm.on(:disconnected, &method(:disconnected))
       @sm.on(:failed, &method(:perm_failure))
     end
@@ -156,7 +156,7 @@ module EventMachine::Hiredis
       }
     end
 
-    def setup_success(prev_state)
+    def connected(prev_state)
       emit(:connected)
       if @reconnect_attempt > 0
         emit(:reconnected)
