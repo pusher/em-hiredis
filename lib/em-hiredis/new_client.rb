@@ -40,7 +40,6 @@ module EventMachine::Hiredis
       @sm.on(:connecting, &method(:connect_internal))
       @sm.on(:setting_up, &method(:setup))
       @sm.on(:connected, &method(:setup_success))
-      @sm.on(:setup_success, &method(:setup_success))
       @sm.on(:disconnected, &method(:disconnected))
       @sm.on(:failed, &method(:perm_failure))
     end
@@ -148,22 +147,6 @@ module EventMachine::Hiredis
       }
     end
 
-    def maybe_auth
-      if @password
-        @connection.send_command(EM::DefaultDeferrable.new, 'auth', @password)
-      else
-        noop
-      end
-    end
-
-    def maybe_select
-      if @db != 0
-        @connection.send_command(EM::DefaultDeferrable.new, 'select', @db)
-      else
-        noop
-      end
-    end
-
     def setup_success(prev_state)
       emit(:connected)
       if @reconnect_attempt > 0
@@ -222,6 +205,22 @@ module EventMachine::Hiredis
     end
 
     alias_method :method_missing, :process_command
+
+    def maybe_auth
+      if @password
+        @connection.send_command(EM::DefaultDeferrable.new, 'auth', @password)
+      else
+        noop
+      end
+    end
+
+    def maybe_select
+      if @db != 0
+        @connection.send_command(EM::DefaultDeferrable.new, 'select', @db)
+      else
+        noop
+      end
+    end
 
     def noop
       df = EM::DefaultDeferrable.new
