@@ -21,6 +21,7 @@ module EventMachine::Hiredis
       [ :connect_perm_failure,    :connect_failed, :failed ],
       [ :setup,                   :connecting, :initialising ],
       [ :setup_failure,           :initialising, :setup_failed ],
+      [ :setup_interrupted,       :initialising, :disconnected ],
       [ :retry_setup,             :setup_failed, :connecting ],
       [ :setup_perm_failure,      :setup_failed, :failed ],
       [ :setup_success,           :initialising, :connected ],
@@ -46,11 +47,12 @@ module EventMachine::Hiredis
       @sm.on(:recover) { connect_internal }
       @sm.on(:retry_setup) { connect_internal }
 
-      @sm.on(:connect_failure) { maybe_reconnect }
+      @sm.on(:connect_failure) { maybe_reconnect(:delayed) }
 
       @sm.on(:setup) { setup }
       @sm.on(:setup_success) { setup_success }
       @sm.on(:setup_failure) { setup_failure }
+      @sm.on(:setup_interrupted) { maybe_reconnect(:immediate) }
 
       @sm.on(:connect_perm_failure) { perm_failure }
       @sm.on(:setup_perm_failure) { perm_failure }
@@ -128,17 +130,23 @@ module EventMachine::Hiredis
       end
     end
 
-    def maybe_reconnect
+    def maybe_reconnect(delay = false)
       emit(:reconnect_failed, @reconnect_attempt) if @reconnect_attempt > 0
 
       if @reconnect_attempt > 3
         @sm.update_state(:failed)
       else
         @reconnect_attempt += 1
-        @reconnect_timer = em_timer(EventMachine::Hiredis.reconnect_timeout) {
-          @reconnect_timer = nil
+        if delay == :delayed
+          @reconnect_timer = em_timer(EventMachine::Hiredis.reconnect_timeout) {
+            @reconnect_timer = nil
+            @sm.update_state(:connecting)
+          }
+        elsif delay == :immediate
           @sm.update_state(:connecting)
-        }
+        else
+          raise "Unrecognised delay sepcifier #{delay}"
+        end
       end
     end
 
@@ -197,22 +205,22 @@ module EventMachine::Hiredis
       @connection.remove_all_listeners(:disconnected)
       @connection.close_connection
 
-      maybe_reconnect
+      maybe_reconnect(:immediate)
     end
 
     def perm_failure
+      emit(:failed)
+      set_deferred_status(:failed, EM::Hiredis::Error.new('Could not connect after 4 attempts'))
+
       @command_queue.each { |df, command, args|
         df.fail(EM::Hiredis::Error.new('Redis connection in failed state'))
       }
       @command_queue.clear
-
-      set_deferred_status(:failed, EM::Hiredis::Error.new('Could not connect after 4 attempts'))
-      emit(:failed)
     end
 
     def disconnected
       emit(:disconnected)
-      maybe_reconnect
+      maybe_reconnect(:immediate)
     end
 
     def process_command(command, *args)

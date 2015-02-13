@@ -162,4 +162,74 @@ describe EM::Hiredis::BaseClient do
       }
     end
   end
+
+  context 'disconnects from em' do
+    it 'should retry when connecting' do
+      mock_connections(2) { |client, (conn_a, conn_b)|
+        connected = false
+        client.connect.callback {
+          connected = true
+        }.errback {
+          fail('Connection failed')
+        }
+
+        # not connected yet
+        conn_a.unbind
+
+        conn_b._expect('select', 9)
+        conn_b._connect
+
+        connected.should == true
+      }
+    end
+
+    it 'should retry when partially set up' do
+      mock_connections(2) { |client, (conn_a, conn_b)|
+        conn_a._expect('select', 9) { next } # leave the deferrable hanging
+
+        connected = false
+        client.connect.callback {
+          connected = true
+        }.errback {
+          fail('Connection failed')
+        }
+
+        conn_a._connect
+        # awaiting response to 'select'
+        conn_a.unbind
+
+        conn_b._expect('select', 9)
+        conn_b._connect
+
+        connected.should == true
+      }
+    end
+
+    it 'should reconnect once connected' do
+      mock_connections(2) { |client, (conn_a, conn_b)|
+        # should reconnect immediately from connected state
+        client.should_not_receive(:em_timer)
+
+        conn_a._expect('select', 9)
+
+        client.connect.errback {
+          fail('Connection failed')
+        }
+
+        reconnected = false
+        client.on(:reconnected) {
+          reconnected = true
+        }
+
+        conn_a._connect
+        # awaiting response to 'select'
+        conn_a.unbind
+
+        conn_b._expect('select', 9)
+        conn_b._connect
+
+        reconnected.should == true
+      }
+    end
+  end
 end
