@@ -6,7 +6,6 @@ module EventMachine::Hiredis
     def initialize
       super
       @response_queue = []
-      @connected = false
     end
 
     def send_command(df, command, args)
@@ -20,7 +19,6 @@ module EventMachine::Hiredis
     def connection_completed
       puts "Connection completed"
       @reader = ::Hiredis::Reader.new
-      @connected = true
       emit(:connected)
     end
 
@@ -50,11 +48,7 @@ module EventMachine::Hiredis
       puts "Unbind"
       @response_queue.each { |df| df.fail(EM::Hiredis::Error.new('Redis connection lost')) }
       @response_queue.clear
-      if @connected
-        emit(:disconnected)
-      else
-        emit(:connection_failed)
-      end
+      emit(:disconnected)
     end
 
     protected
