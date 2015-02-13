@@ -223,12 +223,12 @@ module EventMachine::Hiredis
       maybe_reconnect(:immediate)
     end
 
-    def process_command(command, *args)
+    def process_command(command, *args, &blk)
       puts "process command #{command}"
 
       df = EM::DefaultDeferrable.new
       # Shortcut for defining the callback case with just a block
-      df.callback { |result| yield(result) } if block_given?
+      df.callback(&blk) if blk
 
       if @sm.state == :failed
         df.fail(EM::Hiredis::Error.new('Redis connection in failed state'))
