@@ -182,8 +182,13 @@ describe EM::Hiredis::PubsubClient do
     mock_connections(1, 'redis://:mypass@localhost:6379') do |client, (connection)|
       connection._expect('auth', 'mypass')
 
-      client.connect
+      connected = false
+      client.connect {
+        connected = true
+      }
       connection._connect
+
+      connected.should == true
     end
   end
 
