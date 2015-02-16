@@ -4,7 +4,7 @@ require 'support/inprocess_redis_mock'
 describe EM::Hiredis::BaseClient do
   default_timeout 4
 
-  class TestConnection
+  class ClientTestConnection
     include EM::Hiredis::ReqRespConnection
     include EM::Hiredis::MockConnection
   end
@@ -13,7 +13,7 @@ describe EM::Hiredis::BaseClient do
   # client as it creates new ones
   def mock_connections(expected_connections)
     connections = []
-    expected_connections.times { connections << TestConnection.new }
+    expected_connections.times { connections << ClientTestConnection.new }
     connection_index = 0
 
     klass = Class.new(EM::Hiredis::BaseClient)

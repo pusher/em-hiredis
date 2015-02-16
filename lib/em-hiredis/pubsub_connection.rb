@@ -33,7 +33,7 @@ module EventMachine::Hiredis
         if PUBSUB_COMMANDS.include?(type)
           handle_command_response(*reply)
         end
-        emit(reply[0].to_sym, reply[1..-1])
+        emit(type.to_sym, reply[1..-1])
       end
     end
 
