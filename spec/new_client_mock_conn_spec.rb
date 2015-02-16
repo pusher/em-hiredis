@@ -4,47 +4,16 @@ require 'support/inprocess_redis_mock'
 describe EM::Hiredis::BaseClient do
   default_timeout 4
 
-  class NonEMReqRespConnection
+  class TestConnection
     include EM::Hiredis::ReqRespConnection
-
-    def send_command(df, command, args)
-      args = [args].flatten
-      @expectations ||= []
-      expectation = @expectations.shift
-      if expectation
-        command.to_s.should == expectation[:command]
-        args.should == expectation[:args]
-
-        expectation[:blk].call(df) if expectation[:blk]
-      else
-        fail("Unexpected command #{command}, #{args}")
-      end
-
-      df
-    end
-
-    def _expect(command, *args, &blk)
-      @expectations ||= []
-      blk = lambda { |df| df.succeed } unless blk
-      @expectations << { command: command, args: args, blk: blk }
-    end
-
-    def _expectations_met!
-      if @expectations && @expectations.length > 0
-        fail("Did not receive expected command #{@expectations.shift}")
-      end
-    end
-
-    def _connect
-      connection_completed
-    end
+    include EM::Hiredis::MockConnection
   end
 
   # Create expected_connections connections, inject them in order in to the
-  # client as it  
+  # client as it creates new ones
   def mock_connections(expected_connections)
     connections = []
-    expected_connections.times { connections << NonEMReqRespConnection.new }
+    expected_connections.times { connections << TestConnection.new }
     connection_index = 0
 
     klass = Class.new(EM::Hiredis::BaseClient)

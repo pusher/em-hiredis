@@ -30,7 +30,6 @@ module EventMachine::Hiredis
       until (reply = @reader.gets) == false
         puts "reply #{reply}"
         type = reply && reply[0]
-puts "read #{reply}"
         if PUBSUB_COMMANDS.include?(type)
           handle_command_response(*reply)
         end

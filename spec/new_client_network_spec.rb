@@ -5,7 +5,6 @@ def recording_server(replies = {})
   em {
     IRedisMock.start(replies)
     yield IRedisMock
-    #IRedisMock.stop
   }
 end
 

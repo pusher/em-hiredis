@@ -3,6 +3,7 @@ require 'em-hiredis'
 require 'rspec'
 require 'em-spec/rspec'
 
+require 'support/mock_connection'
 require 'support/connection_helper'
 require 'support/redis_mock'
 require 'stringio'
