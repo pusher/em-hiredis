@@ -1,9 +1,10 @@
 module EventMachine::Hiredis
   module PubsubConnection
+    include ReqRespConnection
     include EventMachine::Hiredis::EventEmitter
 
     PUBSUB_COMMANDS = %w{subscribe unsubscribe psubscribe punsubscribe}.freeze
-    PUBSUB_MESSAGES = %w{message pmessage subscribe unsubscribe psubscribe punsubscribe}.freeze
+    PUBSUB_MESSAGES = %w{message pmessage}.freeze
 
     def initialize
       super
@@ -11,62 +12,36 @@ module EventMachine::Hiredis
       @response_queues = Hash.new { |h, k| h[k] = [] }
     end
 
-    def send_command(df, command, channel)
-      puts "send #{command} #{channel}"
-      raise "Invalid args #{channel}" if channel.size > 1
-      channel = channel[0]
-      @response_queues[channel] << df
-      send_data(marshal(command, channel))
-    end
-
-    # EM::Connection callback
-    def connection_completed
-      emit(:connected)
-    end
-
-    # EM::Connection callback
-    def receive_data(data)
-      @reader.feed(data)
-      until (reply = @reader.gets) == false
-        puts "reply #{reply}"
-        type = reply && reply[0]
-        if PUBSUB_COMMANDS.include?(type)
-          handle_command_response(*reply)
-        end
-        emit(type.to_sym, reply[1..-1])
+    def send_command(df, command, args)
+      if PUBSUB_COMMANDS.include?(command.to_s)
+        puts "send #{command} #{args}"
+        raise "Invalid args #{args}" if args.size > 1
+        channel = args[0]
+        @response_queues[channel] << df
+        send_data(marshal(command, channel))
+      else
+        super
       end
-    end
-
-    # EM::Connection callback
-    def unbind
-      puts "Unbind"
-      emit(:disconnected)
     end
 
     protected
 
-    def handle_command_response(command, channel, sub_count)
-      df = @response_queues[channel].pop
-      df.succeed(sub_count)
+    def handle_incoming(reply)
+      type = reply[0]
+      if PUBSUB_COMMANDS.include?(type)
+        _, channel, sub_count = reply
+        df = @response_queues[channel].pop
+        df.succeed(sub_count)
 
-      if @response_queues[channel].empty?
-        @response_queues.delete(channel)
+        if @response_queues[channel].empty?
+          @response_queues.delete(channel)
+        end
+        emit(type.to_sym, reply[1..-1])
+      elsif PUBSUB_MESSAGES.include?(type)
+        emit(type.to_sym, reply[1..-1])
+      else
+        super(reply)
       end
-    end
-
-    COMMAND_DELIMITER = "\r\n"
-
-    def marshal(*args)
-      command = []
-      command << "*#{args.size}"
-
-      args.each do |arg|
-        arg = arg.to_s
-        command << "$#{arg.to_s.bytesize}"
-        command << arg
-      end
-
-      command.join(COMMAND_DELIMITER) + COMMAND_DELIMITER
     end
   end
 end

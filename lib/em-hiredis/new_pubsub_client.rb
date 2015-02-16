@@ -88,15 +88,6 @@ module EventMachine::Hiredis
       end
     end
 
-    def setup(prev_state)
-      maybe_auth.callback {
-        @sm.update_state(:connected)
-      }.errback { |e|
-        # Failure to auth counts as a connection failure
-        @connection.close_connection
-      }
-    end
-
     def subscribe_impl(type, subscriptions, channel, cb)
       if subscriptions.include?(channel)
         subscriptions[channel] << cb

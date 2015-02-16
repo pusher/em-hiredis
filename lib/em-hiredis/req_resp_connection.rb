@@ -26,19 +26,7 @@ module EventMachine::Hiredis
       @reader.feed(data)
       until (reply = @reader.gets) == false
         puts "reply #{reply}"
-        df = @response_queue.shift
-        if df
-          if RuntimeError === reply
-            e = EM::Hiredis::RedisError.new(reply.message)
-            e.redis_error = reply
-            df.fail(e)
-          else
-            df.succeed(reply)
-          end
-        else
-          emit(:replies_out_of_sync)
-          close_connection
-        end
+        handle_incoming(reply)
       end
     end
 
@@ -65,6 +53,22 @@ module EventMachine::Hiredis
       end
 
       command.join(COMMAND_DELIMITER) + COMMAND_DELIMITER
+    end
+
+    def handle_incoming(reply)
+      df = @response_queue.shift
+      if df
+        if RuntimeError === reply
+          e = EM::Hiredis::RedisError.new(reply.message)
+          e.redis_error = reply
+          df.fail(e)
+        else
+          df.succeed(reply)
+        end
+      else
+        emit(:replies_out_of_sync)
+        close_connection
+      end
     end
   end
 end

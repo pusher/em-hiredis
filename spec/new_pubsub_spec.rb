@@ -183,7 +183,7 @@ describe EM::Hiredis::PubsubClient do
       connection._expect('auth', 'mypass')
 
       connected = false
-      client.connect {
+      client.connect.callback {
         connected = true
       }
       connection._connect
