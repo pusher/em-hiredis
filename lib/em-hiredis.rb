@@ -21,6 +21,11 @@ module EventMachine
       Client.new(uri)
     end
 
+    def self.setup_pubsub(uri = nil)
+      uri = uri || ENV["REDIS_URL"] || "redis://127.0.0.1:6379"
+      PubsubClient.new(uri)
+    end
+
     # Connects to redis and returns a client instance
     #
     # Will connect in preference order to the provided uri, the REDIS_URL
@@ -34,6 +39,12 @@ module EventMachine
     # this case
     def self.connect(uri = nil)
       client = setup(uri)
+      client.connect
+      client
+    end
+
+    def self.pubsub(uri = nil)
+      client = setup_pubsub(uri)
       client.connect
       client
     end
@@ -60,7 +71,9 @@ require 'hiredis/reader'
 require 'em-hiredis/event_emitter'
 require 'em-hiredis/req_resp_connection'
 require 'em-hiredis/em_req_resp_connection'
+require 'em-hiredis/pubsub_connection'
+require 'em-hiredis/em_pubsub_connection'
 require 'em-hiredis/state_machine'
 require 'em-hiredis/new_client'
 require 'em-hiredis/client'
-require 'em-hiredis/pubsub_client'
+require 'em-hiredis/new_pubsub_client'

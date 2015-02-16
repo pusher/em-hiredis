@@ -105,8 +105,6 @@ module EventMachine::Hiredis
       EM.add_timer(delay, &blk)
     end
 
-    private
-
     def connect_internal(prev_state)
       begin
         @connection = em_connect

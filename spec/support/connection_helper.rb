@@ -9,4 +9,12 @@ module ConnectionHelper
       yield redis
     }
   end
+
+  def connect_pubsub(timeout = 1, uri = 'redis://localhost:6379/9')
+    em(timeout) {
+      redis = EM::Hiredis.setup(uri).connect
+      pubsub = EM::Hiredis.setup_pubsub(uri).connect
+      yield redis, pubsub
+    }
+  end
 end
