@@ -21,11 +21,6 @@ module EventMachine
       Client.new(uri)
     end
 
-    def self.setup_pubsub(uri = nil)
-      uri = uri || ENV["REDIS_URL"] || "redis://127.0.0.1:6379"
-      PubsubClient.new(uri)
-    end
-
     # Connects to redis and returns a client instance
     #
     # Will connect in preference order to the provided uri, the REDIS_URL
@@ -39,12 +34,6 @@ module EventMachine
     # this case
     def self.connect(uri = nil)
       client = setup(uri)
-      client.connect
-      client
-    end
-
-    def self.pubsub(uri = nil)
-      client = setup_pubsub(uri)
       client.connect
       client
     end

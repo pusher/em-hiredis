@@ -527,6 +527,15 @@ describe EventMachine::Hiredis, "when closing_connection" do
   end
 end
 
+describe EventMachine::Hiredis::PubsubClient, "before issuing subscribe" do
+  it 'should accept arbitrary commands' do
+    connect do |redis|
+      redis.pubsub
+    end
+  end
+end
+
+
 describe EventMachine::Hiredis, "when redis is blocked by a lua script" do
   it "should select the correct db" do
     script = <<-EOF

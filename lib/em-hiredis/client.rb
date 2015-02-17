@@ -130,7 +130,9 @@ module EventMachine::Hiredis
     #
     def pubsub
       @pubsub ||= begin
-        PubsubClient.new("redis://#{@host}:#{@port}/").connect
+        uri = URI("redis://#{@host}:#{@port}/")
+        uri.password = @password if @password
+        PubsubClient.new(uri).connect
       end
     end
 
