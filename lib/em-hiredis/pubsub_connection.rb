@@ -6,6 +6,8 @@ module EventMachine::Hiredis
     PUBSUB_COMMANDS = %w{subscribe unsubscribe psubscribe punsubscribe}.freeze
     PUBSUB_MESSAGES = %w{message pmessage}.freeze
 
+    PING_CHANNEL = '__em-hiredis-ping'
+
     def initialize
       super
       @reader = ::Hiredis::Reader.new
@@ -16,9 +18,11 @@ module EventMachine::Hiredis
       if PUBSUB_COMMANDS.include?(command.to_s)
         puts "send #{command} #{args}"
         raise "Invalid args #{args}" if args.size > 1
+
         channel = args[0]
         @response_queues[channel] << df
         send_data(marshal(command, channel))
+        return df
       else
         super
       end
@@ -42,6 +46,12 @@ module EventMachine::Hiredis
       else
         super(reply)
       end
+    end
+
+    def ping
+      send_command(EM::DefaultDeferrable.new, 'subscribe', [PING_CHANNEL]).callback {
+        send_command(EM::DefaultDeferrable.new, 'unsubscribe', [PING_CHANNEL])
+      }
     end
   end
 end
