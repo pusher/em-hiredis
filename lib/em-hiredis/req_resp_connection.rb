@@ -1,4 +1,3 @@
-
 module EventMachine::Hiredis
   module ReqRespConnection
     include EventMachine::Hiredis::EventEmitter

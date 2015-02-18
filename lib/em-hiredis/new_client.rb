@@ -40,6 +40,12 @@ module EventMachine::Hiredis
 
       @reconnect_attempt = 0
 
+      # Number of seconds of inactivity on a connection before it sends a ping
+      @inactivity_trigger_secs = 0
+      # Number of seconds of fuyrther inactivity after a ping is sent before
+      # the connection is considered failed
+      @inactivity_response_timeout = 0
+
       # Commands received while we are not initialized, to be sent once we are
       @command_queue = []
 
@@ -78,6 +84,14 @@ module EventMachine::Hiredis
       else
         connect
       end
+    end
+
+    def configure_inactivity_check(trigger_secs, response_timeout)
+      raise ArgumentError('trigger_secs must be > 0') unless trigger_secs.to_i > 0
+      raise ArgumentError('response_timeout must be > 0') unless response_timeout.to_i > 0
+
+      @inactivity_trigger_secs = trigger_secs.to_i
+      @inactivity_response_timeout = response_timeout.to_i
     end
 
     ## Commands which require extra logic
@@ -234,6 +248,5 @@ module EventMachine::Hiredis
       df.succeed
       df
     end
-
   end
 end
