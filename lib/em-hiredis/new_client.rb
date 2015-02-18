@@ -169,6 +169,11 @@ module EventMachine::Hiredis
     end
 
     def connected(prev_state)
+      @command_queue.each { |df, command, args|
+        @connection.send_command(df, command, args)
+      }
+      @command_queue.clear
+
       emit(:connected)
       if @reconnect_attempt > 0
         emit(:reconnected)
@@ -176,11 +181,6 @@ module EventMachine::Hiredis
       end
 
       set_deferred_status(:succeeded)
-
-      @command_queue.each { |df, command, args|
-        @connection.send_command(df, command, args)
-      }
-      @command_queue.clear
     end
 
     def perm_failure(prev_state)
