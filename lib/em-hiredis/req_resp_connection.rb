@@ -7,6 +7,8 @@ module EventMachine::Hiredis
       @reader = ::Hiredis::Reader.new
       @response_queue = []
 
+      @connected = false
+
       @inactivity_trigger_secs = inactivity_trigger_secs
       @inactivity_response_timeout = inactivity_response_timeout
       @inactivity_check_timer = nil
@@ -22,6 +24,7 @@ module EventMachine::Hiredis
 
     # EM::Connection callback
     def connection_completed
+      @connected = true
       emit(:connected)
 
       schedule_inactivity_checks if @inactivity_trigger_secs
@@ -46,7 +49,11 @@ module EventMachine::Hiredis
       @response_queue.each { |df| df.fail(EM::Hiredis::Error.new('Redis connection lost')) }
       @response_queue.clear
 
-      emit(:disconnected)
+      if @connected
+        emit(:disconnected)
+      else
+        emit(:connection_failed)
+      end
     end
 
     protected

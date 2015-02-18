@@ -14,43 +14,34 @@ module EventMachine::Hiredis
 
     attr_reader :host, :port, :password, :db
 
-    TRANSITIONS = [
-      # first connect call
-      [ :initial, :connecting ],
-      # TCP connect fails
-      [ :connecting, :disconnected ],
-      [ :connecting, :connected ],
-      # connection lost
-      [ :connected, :disconnected ],
-      # attempting automatic reconnect
-      [ :disconnected, :connecting ],
-      # all automatic reconnection attempts failed
-      [ :disconnected, :failed ],
-      # manual call of reconnect after failure
-      [ :failed, :connecting ],
-    ]
-
-    def initialize(uri)
+    def initialize(uri, em = EventMachine)
+      @em = em
       configure(uri)
-
-      @reconnect_attempt = 0
 
       # Number of seconds of inactivity on a connection before it sends a ping
       @inactivity_trigger_secs = 0
-      # Number of seconds of fuyrther inactivity after a ping is sent before
+      # Number of seconds of further inactivity after a ping is sent before
       # the connection is considered failed
       @inactivity_response_timeout = 0
 
       # Commands received while we are not initialized, to be sent once we are
       @command_queue = []
 
-      @sm = StateMachine.new
-      TRANSITIONS.each { |t| @sm.transition(*t) }
+      @client_state_machine = ClientStateMachine.new(em, method(:factory_connection))
 
-      @sm.on(:connecting, &method(:connect_internal))
-      @sm.on(:connected, &method(:connected))
-      @sm.on(:disconnected, &method(:disconnected))
-      @sm.on(:failed, &method(:perm_failure))
+      @client_state_machine.on(:connected) {
+        emit(:connected)
+        set_deferred_status(:succeeded)
+      }
+
+      @client_state_machine.on(:disconnected) { emit(:disconnected) }
+      @client_state_machine.on(:reconnected) { emit(:reconnected) }
+      @client_state_machine.on(:reconnect_failed) { |count| emit(:reconnect_failed, count) }
+
+      @client_state_machine.on(:failed) {
+        emit(:failed)
+        set_deferred_status(:failed, Error.new('Could not connect after 4 attempts'))
+      }
     end
 
     def configure(uri_string)
@@ -66,18 +57,12 @@ module EventMachine::Hiredis
     end
 
     def connect
-      @sm.update_state(:connecting)
-
-      @deferred_status = nil
-      return self
+      @client_state_machine.connect
+      self
     end
 
     def reconnect
-      if @connection
-        @connection.close_connection
-      else
-        connect
-      end
+      @client_state_machine.reconnect
     end
 
     def configure_inactivity_check(trigger_secs, response_timeout)
@@ -104,106 +89,54 @@ module EventMachine::Hiredis
 
     protected
 
-    # For overriding by tests to inject mock connections and avoid eventmachine
-    def em_connect
-      EM.connect(@host, @port, EMReqRespConnection)
-    end
-
-    def em_timer(delay, &blk)
-      EM.add_timer(delay, &blk)
-    end
-
-    def em_cancel_timer(timer)
-      EM.cancel_timer(timer)
-    end
-
-    def connect_internal(prev_state)
-      if @reconnect_timer
-        em_cancel_timer(@reconnect_timer)
-        @reconnect_timer = nil
-      end
+    def factory_connection
+      df = EM::DefaultDeferrable.new
 
       begin
-        @connection = em_connect
-        @connection.on(:connected) {
-          maybe_auth.callback {
-            maybe_select.callback {
-              @sm.update_state(:connected)
+        connection = @em.connect(@host, @port, EMReqRespConnection)
+
+        connection.on(:connected) {
+          maybe_auth(connection).callback {
+            maybe_select(connection).callback {
+              @command_queue.each { |df, command, args|
+                connection.send_command(df, command, args)
+              }
+              @command_queue.clear
+
+              df.succeed(connection)
             }.errback { |e|
               # Failure to select db counts as a connection failure
-              @connection.close_connection
+              connection.close_connection
+              df.fail(e)
             }
           }.errback { |e|
             # Failure to auth counts as a connection failure
-            @connection.close_connection
+            connection.close_connection
+            df.fail(e)
           }
         }
-        @connection.on(:disconnected) {
-          @sm.update_state(:disconnected)
+
+        connection.on(:connection_failed) {
+          df.fail('Connection failed')
         }
       rescue EventMachine::ConnectionError => e
-        puts e
-        @sm.update_state(:disconnected)
+        df.fail(e)
       end
-    end
 
-    def maybe_reconnect(delay = false)
-      emit(:reconnect_failed, @reconnect_attempt) if @reconnect_attempt > 0
-
-      if @reconnect_attempt > 3
-        @sm.update_state(:failed)
-      else
-        @reconnect_attempt += 1
-        if delay == :delayed
-          @reconnect_timer = em_timer(EventMachine::Hiredis.reconnect_timeout) {
-            @reconnect_timer = nil
-            @sm.update_state(:connecting)
-          }
-        elsif delay == :immediate
-          @sm.update_state(:connecting)
-        else
-          raise "Unrecognised delay specifier #{delay}"
-        end
-      end
+      return df
     end
 
     def connected(prev_state)
-      @command_queue.each { |df, command, args|
-        @connection.send_command(df, command, args)
-      }
-      @command_queue.clear
-
-      emit(:connected)
-      if @reconnect_attempt > 0
-        emit(:reconnected)
-        @reconnect_attempt = 0
-      end
-
       set_deferred_status(:succeeded)
     end
 
     def perm_failure(prev_state)
-      emit(:failed)
       set_deferred_status(:failed, EM::Hiredis::Error.new('Could not connect after 4 attempts'))
 
       @command_queue.each { |df, command, args|
         df.fail(EM::Hiredis::Error.new('Redis connection in failed state'))
       }
       @command_queue.clear
-    end
-
-    def disconnected(prev_state)
-      delay = case prev_state
-      when :connected
-        emit(:disconnected)
-        :immediate
-      when :connecting
-        :delayed
-      when :setting_up
-        :delayed
-      end
-
-      maybe_reconnect(delay)
     end
 
     def process_command(command, *args, &blk)
@@ -213,10 +146,10 @@ module EventMachine::Hiredis
       # Shortcut for defining the callback case with just a block
       df.callback(&blk) if blk
 
-      if @sm.state == :failed
+      if @client_state_machine.state == :failed
         df.fail(EM::Hiredis::Error.new('Redis connection in failed state'))
-      elsif @sm.state == :connected
-        @connection.send_command(df, command, args)
+      elsif @client_state_machine.state == :connected
+        @client_state_machine.connection.send_command(df, command, args)
       else
         @command_queue << [df, command, args]
       end
@@ -226,17 +159,17 @@ module EventMachine::Hiredis
 
     alias_method :method_missing, :process_command
 
-    def maybe_auth
+    def maybe_auth(connection)
       if @password
-        @connection.send_command(EM::DefaultDeferrable.new, 'auth', @password)
+        connection.send_command(EM::DefaultDeferrable.new, 'auth', @password)
       else
         noop
       end
     end
 
-    def maybe_select
+    def maybe_select(connection)
       if @db != 0
-        @connection.send_command(EM::DefaultDeferrable.new, 'select', @db)
+        connection.send_command(EM::DefaultDeferrable.new, 'select', @db)
       else
         noop
       end

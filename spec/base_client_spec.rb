@@ -36,8 +36,10 @@ describe EM::Hiredis::Client do
         done if expected == 3
       }
 
-      redis.configure("redis://not-a-host:9999/")
-      redis.reconnect
+      redis.callback {
+        redis.configure("redis://not-a-host:9999/")
+        redis.reconnect
+      }
     end
   end
 
@@ -53,17 +55,6 @@ describe EM::Hiredis::Client do
         events.should == [1,2,3,4]
         done
       }
-    end
-  end
-
-  it "should fail queued commands when entering failed state" do
-    connect(1, "redis://localhost:9999/") do |redis|
-      redis.get('foo').errback { |error|
-        error.class.should == EM::Hiredis::Error
-        error.message.should == 'Redis connection in failed state'
-        done
-      }
-      redis.fail
     end
   end
 

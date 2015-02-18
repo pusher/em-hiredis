@@ -2,6 +2,8 @@ module EventMachine::Hiredis
   module MockConnection
 
     def send_command(df, command, args)
+      @response_queue << df
+
       args = [args].flatten
       @expectations ||= []
       expectation = @expectations.shift
@@ -31,6 +33,10 @@ module EventMachine::Hiredis
 
     def _connect
       connection_completed
+    end
+
+    def close_connection
+      unbind
     end
 
   end

@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'set'
 require 'support/inprocess_redis_mock'
 
 describe EM::Hiredis::BaseClient do
@@ -9,31 +10,44 @@ describe EM::Hiredis::BaseClient do
     include EM::Hiredis::MockConnection
   end
 
+  class TestEM
+    attr_reader :connections
+
+    def initialize(expected_connections)
+      @timers = Set.new
+      @connections = []
+      expected_connections.times { @connections << ClientTestConnection.new }
+      @connection_index = 0
+    end
+
+    def connect(host, port, connection_class)
+      connection = @connections[@connection_index]
+      @connection_index += 1
+      connection
+    end
+
+    def add_timer(delay, &blk)
+      timer = Object.new
+      @timers.add(timer)
+      blk.call
+
+      return timer
+    end
+
+    def cancel_timer(timer)
+      marker = @timers.delete(timer)
+      marker.should_not == nil
+    end
+  end
+
   # Create expected_connections connections, inject them in order in to the
   # client as it creates new ones
   def mock_connections(expected_connections)
-    connections = []
-    expected_connections.times { connections << ClientTestConnection.new }
-    connection_index = 0
+    em = TestEM.new(expected_connections)
 
-    klass = Class.new(EM::Hiredis::BaseClient)
-    klass.send(:define_method, :em_connect) {
-      connection = connections[connection_index]
-      connection_index += 1
-      connection
-    }
+    yield EM::Hiredis::BaseClient.new('redis://localhost:6379/9', em), em.connections
 
-    klass.send(:define_method, :em_timer) { |delay, &blk|
-      blk.call
-    }
-
-    klass.send(:define_method, :em_cancel_timer) { |timer|
-
-    }
-
-    yield klass.new('redis://localhost:6379/9'), connections
-
-    connections.each { |c| c._expectations_met! }
+    em.connections.each { |c| c._expectations_met! }
   end
 
   it 'should queue commands issued while reconnecting' do
@@ -67,6 +81,21 @@ describe EM::Hiredis::BaseClient do
   context 'failed state' do
     default_timeout 2
 
+    it 'should be fail queued commands when entering the state' do
+      mock_connections(5) { |client, connections|
+        client.connect
+
+        # Queue command that will later fail
+        client.ping.errback { |e|
+          e.message.should == 'Redis connection in failed state'
+          done
+        }
+
+        # THEN fail all connection attempts
+        connections.each { |c| c.unbind }
+      }
+    end
+
     it 'should be possible to recover' do
       mock_connections(6) { |client, connections|
         failing_connections = connections[0..4]
@@ -76,7 +105,7 @@ describe EM::Hiredis::BaseClient do
         client.connect
         failing_connections.each { |c| c.unbind }
 
-        # We sohuld now be in the failed state
+        # We should now be in the failed state
         got_errback = false
         client.ping.errback { |e|
           e.message.should == 'Redis connection in failed state'

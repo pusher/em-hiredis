@@ -94,8 +94,6 @@ describe EM::Hiredis::BaseClient do
       recording_server { |server|
         client = EM::Hiredis::BaseClient.new('redis://localhost:6381/9')
         client.connect.callback {
-          server.kill_connections
-
           callbacks = []
           client.on(:connected) {
             callbacks.push(:connected)
@@ -109,6 +107,8 @@ describe EM::Hiredis::BaseClient do
               done
             end
           }
+
+          server.kill_connections
         }
       }
     end
@@ -226,15 +226,15 @@ describe EM::Hiredis::BaseClient do
       recording_server { |server|
         client = EM::Hiredis::BaseClient.new('redis://localhost:6381/9')
         client.connect.callback {
-          server.stop
-          server.kill_connections
-
           client.on(:failed) {
             client.get('foo').errback { |e|
               e.message.should == 'Redis connection in failed state'
               done
             }
           }
+
+          server.stop
+          server.kill_connections
         }
       }
     end
