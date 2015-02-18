@@ -120,6 +120,11 @@ module EventMachine::Hiredis
     end
 
     def connect_internal(prev_state)
+      if @reconnect_timer
+        EM.cancel_timer(@reconnect_timer)
+        @reconnect_timer = nil
+      end
+
       begin
         @connection = em_connect
         @connection.on(:connected) {
