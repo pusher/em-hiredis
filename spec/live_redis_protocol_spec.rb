@@ -517,7 +517,7 @@ describe EventMachine::Hiredis, "when closing_connection" do
   it "should fail deferred commands" do
     errored = false
     connect do |redis|
-      redis.on(:connected) {
+      redis.callback {
         op = redis.blpop 'empty_list'
         op.callback { fail }
         op.errback { done }

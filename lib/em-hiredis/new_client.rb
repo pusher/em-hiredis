@@ -19,12 +19,7 @@ module EventMachine::Hiredis
       [ :initial, :connecting ],
       # TCP connect fails
       [ :connecting, :disconnected ],
-      # TCP connection up, need to auth and select db before processing any commands
-      [ :connecting, :setting_up ],
-      # auth and db select do not succeed (rejected, connection failure, etc...)
-      [ :setting_up, :disconnected ],
-      # connection is ready to process commands
-      [ :setting_up, :connected ],
+      [ :connecting, :connected ],
       # connection lost
       [ :connected, :disconnected ],
       # attempting automatic reconnect
@@ -53,7 +48,6 @@ module EventMachine::Hiredis
       TRANSITIONS.each { |t| @sm.transition(*t) }
 
       @sm.on(:connecting, &method(:connect_internal))
-      @sm.on(:setting_up, &method(:setup))
       @sm.on(:connected, &method(:connected))
       @sm.on(:disconnected, &method(:disconnected))
       @sm.on(:failed, &method(:perm_failure))
@@ -119,16 +113,30 @@ module EventMachine::Hiredis
       EM.add_timer(delay, &blk)
     end
 
+    def em_cancel_timer(timer)
+      EM.cancel_timer(timer)
+    end
+
     def connect_internal(prev_state)
       if @reconnect_timer
-        EM.cancel_timer(@reconnect_timer)
+        em_cancel_timer(@reconnect_timer)
         @reconnect_timer = nil
       end
 
       begin
         @connection = em_connect
         @connection.on(:connected) {
-          @sm.update_state(:setting_up)
+          maybe_auth.callback {
+            maybe_select.callback {
+              @sm.update_state(:connected)
+            }.errback { |e|
+              # Failure to select db counts as a connection failure
+              @connection.close_connection
+            }
+          }.errback { |e|
+            # Failure to auth counts as a connection failure
+            @connection.close_connection
+          }
         }
         @connection.on(:disconnected) {
           @sm.update_state(:disconnected)
@@ -157,20 +165,6 @@ module EventMachine::Hiredis
           raise "Unrecognised delay specifier #{delay}"
         end
       end
-    end
-
-    def setup(prev_state)
-      maybe_auth.callback {
-        maybe_select.callback {
-          @sm.update_state(:connected)
-        }.errback { |e|
-          # Failure to select db counts as a connection failure
-          @connection.close_connection
-        }
-      }.errback { |e|
-        # Failure to auth counts as a connection failure
-        @connection.close_connection
-      }
     end
 
     def connected(prev_state)
