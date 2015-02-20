@@ -1,28 +1,33 @@
 module EventMachine::Hiredis
   module MockConnection
 
-    def send_command(df, command, args)
-      @response_queue << df
-
-      args = [args].flatten
+    def send_data(data)
       @expectations ||= []
       expectation = @expectations.shift
       if expectation
-        command.to_s.should == expectation[:command]
-        args.should == expectation[:args]
+        data.to_s.should == expectation[:command]
 
-        expectation[:blk].call(df) if expectation[:blk]
+        handle_response(expectation[:response]) if expectation[:response]
       else
         fail("Unexpected command #{command}, #{args}")
       end
-
-      df
     end
 
-    def _expect(command, *args, &blk)
+    def marshal(*args)
+      args.flatten.join(' ')
+    end
+
+    def close_connection
+      unbind
+    end
+
+    def _expect(command, response = 'OK')
       @expectations ||= []
-      blk = lambda { |df| df.succeed } unless blk
-      @expectations << { command: command, args: args, blk: blk }
+      @expectations << { command: command, response: response }
+    end
+
+    def _expect_no_response(command)
+      _expect(command, nil)
     end
 
     def _expectations_met!
@@ -30,14 +35,5 @@ module EventMachine::Hiredis
         fail("Did not receive expected command #{@expectations.shift}")
       end
     end
-
-    def _connect
-      connection_completed
-    end
-
-    def close_connection
-      unbind
-    end
-
   end
 end

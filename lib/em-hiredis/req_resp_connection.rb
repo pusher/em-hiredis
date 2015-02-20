@@ -37,7 +37,7 @@ module EventMachine::Hiredis
       @reader.feed(data)
       until (reply = @reader.gets) == false
         puts "reply #{reply}"
-        handle_incoming(reply)
+        handle_response(reply)
       end
     end
 
@@ -73,7 +73,7 @@ module EventMachine::Hiredis
       command.join(COMMAND_DELIMITER) + COMMAND_DELIMITER
     end
 
-    def handle_incoming(reply)
+    def handle_response(reply)
       df = @response_queue.shift
       if df
         if RuntimeError === reply

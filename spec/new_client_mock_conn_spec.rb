@@ -55,16 +55,16 @@ describe EM::Hiredis::BaseClient do
       # Both connections expect to receive 'select' first
       # But pings 3 and 4 and issued between conn_a being disconnected
       # and conn_b completing its connection
-      conn_a._expect('select', 9) { |df| df.succeed }
-      conn_a._expect('ping', 1) { |df| df.succeed }
-      conn_a._expect('ping', 2) { |df| df.succeed }
+      conn_a._expect('select 9')
+      conn_a._expect('ping 1')
+      conn_a._expect('ping 2')
 
-      conn_b._expect('select', 9) { |df| df.succeed }
-      conn_b._expect('ping', 3) { |df| df.succeed }
-      conn_b._expect('ping', 4) { |df| df.succeed }
+      conn_b._expect('select 9')
+      conn_b._expect('ping 3')
+      conn_b._expect('ping 4')
 
       client.connect
-      conn_a._connect
+      conn_a.connection_completed
 
       client.ping(1)
       client.ping(2)
@@ -74,7 +74,7 @@ describe EM::Hiredis::BaseClient do
       client.ping(3)
       client.ping(4)
 
-      conn_b._connect
+      conn_b.connection_completed
     }
   end
 
@@ -86,13 +86,16 @@ describe EM::Hiredis::BaseClient do
         client.connect
 
         # Queue command that will later fail
+        got_errback = false
         client.ping.errback { |e|
           e.message.should == 'Redis connection in failed state'
-          done
+          got_errback = true
         }
 
         # THEN fail all connection attempts
         connections.each { |c| c.unbind }
+
+        got_errback.should == true
       }
     end
 
@@ -112,12 +115,12 @@ describe EM::Hiredis::BaseClient do
           got_errback = true
         }
 
-        good_connection._expect('select', 9) { |df| df.succeed }
-        good_connection._expect('ping') { |df| df.succeed }
+        good_connection._expect('select 9')
+        good_connection._expect('ping')
 
         # But after calling connect and completing the connection, we are functional again
         client.connect
-        good_connection._connect
+        good_connection.connection_completed
 
         got_callback = false
         client.ping.callback {
@@ -145,8 +148,8 @@ describe EM::Hiredis::BaseClient do
           got_errback = true
         }
 
-        good_connection._expect('select', 9) { |df| df.succeed }
-        good_connection._expect('ping') { |df| df.succeed }
+        good_connection._expect('select 9')
+        good_connection._expect('ping')
 
         # But after calling connect, we queue commands even though the connection
         # is not yet complete
@@ -157,7 +160,7 @@ describe EM::Hiredis::BaseClient do
           got_callback = true
         }
 
-        good_connection._connect
+        good_connection.connection_completed
 
         got_errback.should == true
         got_callback.should == true
@@ -178,8 +181,8 @@ describe EM::Hiredis::BaseClient do
         # not connected yet
         conn_a.unbind
 
-        conn_b._expect('select', 9)
-        conn_b._connect
+        conn_b._expect('select 9')
+        conn_b.connection_completed
 
         connected.should == true
       }
@@ -187,21 +190,19 @@ describe EM::Hiredis::BaseClient do
 
     it 'should retry when partially set up' do
       mock_connections(2) { |client, (conn_a, conn_b)|
-        conn_a._expect('select', 9) { next } # leave the deferrable hanging
+        conn_a._expect_no_response('select 9')
 
         connected = false
         client.connect.callback {
           connected = true
-        }.errback {
-          fail('Connection failed')
         }
 
-        conn_a._connect
+        conn_a.connection_completed
         # awaiting response to 'select'
         conn_a.unbind
 
-        conn_b._expect('select', 9)
-        conn_b._connect
+        conn_b._expect('select 9')
+        conn_b.connection_completed
 
         connected.should == true
       }
@@ -209,10 +210,7 @@ describe EM::Hiredis::BaseClient do
 
     it 'should reconnect once connected' do
       mock_connections(2) { |client, (conn_a, conn_b)|
-        # should reconnect immediately from connected state
-        client.should_not_receive(:em_timer)
-
-        conn_a._expect('select', 9)
+        conn_a._expect('select 9')
 
         client.connect.errback {
           fail('Connection failed')
@@ -223,12 +221,12 @@ describe EM::Hiredis::BaseClient do
           reconnected = true
         }
 
-        conn_a._connect
+        conn_a.connection_completed
         # awaiting response to 'select'
         conn_a.unbind
 
-        conn_b._expect('select', 9)
-        conn_b._connect
+        conn_b._expect('select 9')
+        conn_b.connection_completed
 
         reconnected.should == true
       }
