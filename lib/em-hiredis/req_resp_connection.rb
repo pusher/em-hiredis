@@ -3,7 +3,6 @@ module EventMachine::Hiredis
     include EventMachine::Hiredis::EventEmitter
 
     def initialize(inactivity_trigger_secs = nil, inactivity_response_timeout = 2)
-      super()
       @reader = ::Hiredis::Reader.new
       @response_queue = []
 

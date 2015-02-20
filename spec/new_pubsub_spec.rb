@@ -9,36 +9,53 @@ describe EM::Hiredis::PubsubClient do
     include EM::Hiredis::MockConnection
   end
 
+  class TestEM
+    attr_reader :connections
+
+    def initialize(expected_connections)
+      @timers = Set.new
+      @connections = []
+      expected_connections.times { @connections << PubsubTestConnection.new }
+      @connection_index = 0
+    end
+
+    def connect(host, port, connection_class, *args)
+      connection = @connections[@connection_index]
+      @connection_index += 1
+      connection
+    end
+
+    def add_timer(delay, &blk)
+      timer = Object.new
+      @timers.add(timer)
+      blk.call
+
+      return timer
+    end
+
+    def cancel_timer(timer)
+      marker = @timers.delete(timer)
+      marker.should_not == nil
+    end
+  end
+
   # Create expected_connections connections, inject them in order in to the
   # client as it creates new ones
   def mock_connections(expected_connections, uri = 'redis://localhost:6379')
-    connections = []
-    expected_connections.times { connections << PubsubTestConnection.new }
-    connection_index = 0
+    em = TestEM.new(expected_connections)
 
-    klass = Class.new(EM::Hiredis::PubsubClient)
-    klass.send(:define_method, :em_connect) {
-      connection = connections[connection_index]
-      connection_index += 1
-      connection
-    }
+    yield EM::Hiredis::PubsubClient.new(uri, nil, nil, em), em.connections
 
-    klass.send(:define_method, :em_timer) { |delay, &blk|
-      blk.call
-    }
-
-    yield klass.new(uri), connections
-
-    connections.each { |c| c._expectations_met! }
+    em.connections.each { |c| c._expectations_met! }
   end
 
   it "should unsubscribe all callbacks for a channel on unsubscribe" do
     mock_connections(1) do |client, (connection)|
       client.connect
-      connection._connect
+      connection.connection_completed
 
-      connection._expect('subscribe', 'channel')
-      connection._expect('unsubscribe', 'channel')
+      connection._expect_and_echo('subscribe channel')
+      connection._expect_and_echo('unsubscribe channel')
 
       # Block subscription
       df_block = client.subscribe('channel') { |m| fail }
@@ -58,8 +75,8 @@ describe EM::Hiredis::PubsubClient do
   it "should allow selective unsubscription" do
     mock_connections(1) do |client, (connection)|
       client.connect
-      connection._connect
-      connection._expect('subscribe', 'channel')
+      connection.connection_completed
+      connection._expect_and_echo('subscribe channel')
 
       received_messages = 0
 
@@ -84,9 +101,9 @@ describe EM::Hiredis::PubsubClient do
   it "should unsubscribe from redis when all subscriptions for a channel are unsubscribed" do
     mock_connections(1) do |client, (connection)|
       client.connect
-      connection._connect
-      connection._expect('subscribe', 'channel')
-      connection._expect('unsubscribe', 'channel')
+      connection.connection_completed
+      connection._expect_and_echo('subscribe channel')
+      connection._expect_and_echo('unsubscribe channel')
 
       proc_a = Proc.new { |m| fail }
       df_a = client.subscribe('channel', proc_a)
@@ -108,10 +125,10 @@ describe EM::Hiredis::PubsubClient do
   it "should punsubscribe all callbacks for a pattern on punsubscribe" do
     mock_connections(1) do |client, (connection)|
       client.connect
-      connection._connect
+      connection.connection_completed
 
-      connection._expect('psubscribe', 'channel:*')
-      connection._expect('punsubscribe', 'channel:*')
+      connection._expect_and_echo('psubscribe channel:*')
+      connection._expect_and_echo('punsubscribe channel:*')
 
       # Block subscription
       df_block = client.psubscribe('channel:*') { |m| fail }
@@ -121,7 +138,7 @@ describe EM::Hiredis::PubsubClient do
       df_block.callback {
         df_proc.callback {
           client.punsubscribe('channel:*').callback {
-            connection.emit(:pmessage, 'channel:*', 'channel:hello' 'hello')
+            connection.emit(:pmessage, 'channel:*', 'channel:hello', 'hello')
           }
         }
       }
@@ -131,8 +148,8 @@ describe EM::Hiredis::PubsubClient do
   it "should allow selective punsubscription" do
     mock_connections(1) do |client, (connection)|
       client.connect
-      connection._connect
-      connection._expect('psubscribe', 'channel:*')
+      connection.connection_completed
+      connection._expect_and_echo('psubscribe channel:*')
 
       received_messages = 0
 
@@ -145,7 +162,7 @@ describe EM::Hiredis::PubsubClient do
       df_block.callback {
         df_proc.callback {
           client.punsubscribe_proc('channel:*', proc).callback {
-            connection.emit(:pmessage, 'channel:*', 'channel:hello' 'hello')
+            connection.emit(:pmessage, 'channel:*', 'channel:hello', 'hello')
           }
         }
       }
@@ -157,9 +174,9 @@ describe EM::Hiredis::PubsubClient do
   it "should punsubscribe from redis when all psubscriptions for a pattern are punsubscribed" do
     mock_connections(1) do |client, (connection)|
       client.connect
-      connection._connect
-      connection._expect('psubscribe', 'channel:*')
-      connection._expect('punsubscribe', 'channel:*')
+      connection.connection_completed
+      connection._expect_and_echo('psubscribe channel:*')
+      connection._expect_and_echo('punsubscribe channel:*')
 
       proc_a = Proc.new { |m| fail }
       df_a = client.psubscribe('channel:*', proc_a)
@@ -170,7 +187,7 @@ describe EM::Hiredis::PubsubClient do
         df_b.callback {
           client.punsubscribe_proc('channel:*', proc_a).callback {
             client.punsubscribe_proc('channel:*', proc_b).callback {
-              connection.emit(:pmessage, 'channel:*', 'channel:hello' 'hello')
+              connection.emit(:pmessage, 'channel:*', 'channel:hello', 'hello')
             }
           }
         }
@@ -180,13 +197,13 @@ describe EM::Hiredis::PubsubClient do
 
   it 'should auth if password provided' do
     mock_connections(1, 'redis://:mypass@localhost:6379') do |client, (connection)|
-      connection._expect('auth', 'mypass')
+      connection._expect_and_echo('auth mypass')
 
       connected = false
       client.connect.callback {
         connected = true
       }
-      connection._connect
+      connection.connection_completed
 
       connected.should == true
     end

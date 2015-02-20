@@ -8,7 +8,7 @@ module EventMachine::Hiredis
   # * :disconnected - no longer connected, when previously in connected state
   # * :reconnect_failed(failure_number) - a reconnect attempt failed
   #     This event is passed number of failures so far (1,2,3...)
-  class PubsubClient < BaseClient
+  class PubsubClient
     include EventEmitter
     include EventMachine::Deferrable
 
@@ -41,6 +41,9 @@ module EventMachine::Hiredis
       # Subscribed patterns to their callbacks
       @psubscriptions = Hash.new { |h, k| h[k] = [] }
 
+      # Subscribes received while we are not initialized, to be sent once we are
+      @command_queue = []
+
       @client_state_machine = ClientStateMachine.new(em, method(:factory_connection))
 
       @client_state_machine.on(:connected) {
@@ -53,6 +56,11 @@ module EventMachine::Hiredis
       @client_state_machine.on(:reconnect_failed) { |count| emit(:reconnect_failed, count) }
 
       @client_state_machine.on(:failed) {
+        @command_queue.each { |df, _, _|
+          df.fail(EM::Hiredis::Error.new('Redis connection in failed state'))
+        }
+        @command_queue.clear
+
         emit(:failed)
         set_deferred_status(:failed, Error.new('Could not connect after 4 attempts'))
       }
@@ -64,6 +72,15 @@ module EventMachine::Hiredis
       @host = uri.host
       @port = uri.port
       @password = uri.password
+    end
+
+    def connect
+      @client_state_machine.connect
+      return self
+    end
+
+    def reconnect
+      @client_state_machine.reconnect
     end
 
     def subscribe(channel, proc = nil, &blk)
@@ -108,8 +125,6 @@ module EventMachine::Hiredis
 
         connection.on(:connected) {
           maybe_auth(connection).callback {
-            @subscriptions.keys.each { |channel| process_command(:subscribe, channel) }
-            @psubscriptions.keys.each { |pattern| process_command(:psubscribe, pattern) }
 
             connection.on(:message, &method(:message_callbacks))
             connection.on(:pmessage, &method(:pmessage_callbacks))
@@ -121,10 +136,18 @@ module EventMachine::Hiredis
               :psubscribe,
               :punsubscribe
             ].each do |command|
-              connection.on(command) { |args|
-                emit(command, args)
+              connection.on(command) { |*args|
+                emit(command, *args)
               }
             end
+
+            @command_queue.each { |df, command, args|
+              connection.send_command(df, command, args)
+            }
+            @command_queue.clear
+
+            @subscriptions.keys.each { |channel| subscribe(:subscribe, channel) }
+            @psubscriptions.keys.each { |pattern| subscribe(:psubscribe, pattern) }
 
             df.succeed(connection)
           }.errback { |e|
@@ -145,21 +168,34 @@ module EventMachine::Hiredis
     end
 
     def subscribe_impl(type, subscriptions, channel, cb)
+      df = EM::DefaultDeferrable.new
+
       if subscriptions.include?(channel)
+        # Short circuit issuing the command if we're already subscribed
         subscriptions[channel] << cb
-        return noop
-      else
-        df = process_command(type, channel)
-        return df.callback {
+        df.succeed
+      elsif @client_state_machine.state == :failed
+        df.fail('Redis connection in failed state')
+      elsif @client_state_machine.state == :connected
+        @client_state_machine.connection.send_command(df, type, channel)
+        df.callback {
           subscriptions[channel] << cb
         }
+      else
+        @command_queue << [df, type, channel]
       end
+
+      return df
     end
 
     def unsubscribe_impl(type, subscriptions, channel)
       if subscriptions.include?(channel)
         subscriptions.delete(channel)
-        process_command(type, channel)
+        if @client_state_machine.state == :connected
+          @client_state_machine.connection.send_command(EM::DefaultDeferrable.new, type, channel)
+        else
+          noop
+        end
       end
     end
 
@@ -192,6 +228,20 @@ module EventMachine::Hiredis
       if cbs
         cbs.each { |cb| cb.call(channel, message) if cb }
       end
+    end
+
+    def maybe_auth(connection)
+      if @password
+        connection.send_command(EM::DefaultDeferrable.new, 'auth', @password)
+      else
+        noop
+      end
+    end
+
+    def noop
+      df = EM::DefaultDeferrable.new
+      df.succeed
+      df
     end
   end
 end

@@ -5,7 +5,7 @@ module EventMachine::Hiredis
     end
 
     def emit(event, *args)
-      puts "#{self.class} #{event.inspect}"
+      puts "#{self.class} #{event.inspect} #{args}"
       _listeners[event].each { |l| l.call(*args) }
     end
 

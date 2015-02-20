@@ -51,7 +51,7 @@ module EventMachine::Hiredis
       @client_state_machine.on(:reconnect_failed) { |count| emit(:reconnect_failed, count) }
 
       @client_state_machine.on(:failed) {
-        @command_queue.each { |df, command, args|
+        @command_queue.each { |df, _, _|
           df.fail(EM::Hiredis::Error.new('Redis connection in failed state'))
         }
         @command_queue.clear

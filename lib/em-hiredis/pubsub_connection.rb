@@ -1,6 +1,5 @@
 module EventMachine::Hiredis
   module PubsubConnection
-    include ReqRespConnection
     include EventMachine::Hiredis::EventEmitter
 
     PUBSUB_COMMANDS = %w{subscribe unsubscribe psubscribe punsubscribe}.freeze
@@ -8,29 +7,58 @@ module EventMachine::Hiredis
 
     PING_CHANNEL = '__em-hiredis-ping'
 
-    def initialize
-      super
+    def initialize(inactivity_trigger_secs = nil, inactivity_response_timeout = 2)
       @reader = ::Hiredis::Reader.new
       @response_queues = Hash.new { |h, k| h[k] = [] }
     end
 
-    def send_command(df, command, args)
+    def send_command(df, command, channel)
       if PUBSUB_COMMANDS.include?(command.to_s)
-        puts "send #{command} #{args}"
-        raise "Invalid args #{args}" if args.size > 1
-
-        channel = args[0]
         @response_queues[channel] << df
         send_data(marshal(command, channel))
         return df
       else
-        super
+        raise "Cannot send command '#{command}' on Pubsub connection"
+      end
+    end
+
+    # EM::Connection callback
+    def connection_completed
+      @connected = true
+      emit(:connected)
+
+      schedule_inactivity_checks if @inactivity_trigger_secs
+    end
+
+    # EM::Connection callback
+    def receive_data(data)
+      @inactive_seconds = 0
+
+      @reader.feed(data)
+      until (reply = @reader.gets) == false
+        puts "reply #{reply}"
+        handle_response(reply)
       end
     end
 
     protected
 
-    def handle_incoming(reply)
+    COMMAND_DELIMITER = "\r\n"
+
+    def marshal(*args)
+      command = []
+      command << "*#{args.size}"
+
+      args.each do |arg|
+        arg = arg.to_s
+        command << "$#{arg.to_s.bytesize}"
+        command << arg
+      end
+
+      command.join(COMMAND_DELIMITER) + COMMAND_DELIMITER
+    end
+
+    def handle_response(reply)
       type = reply[0]
       if PUBSUB_COMMANDS.include?(type)
         _, channel, sub_count = reply
@@ -40,11 +68,11 @@ module EventMachine::Hiredis
         if @response_queues[channel].empty?
           @response_queues.delete(channel)
         end
-        emit(type.to_sym, reply[1..-1])
+        emit(type.to_sym, *reply[1..-1])
       elsif PUBSUB_MESSAGES.include?(type)
-        emit(type.to_sym, reply[1..-1])
+        emit(type.to_sym, *reply[1..-1])
       else
-        super(reply)
+        raise "Unrecognised response #{reply}"
       end
     end
 
