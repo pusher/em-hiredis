@@ -14,15 +14,27 @@ module EventMachine::Hiredis
 
     attr_reader :host, :port, :password, :db
 
-    def initialize(uri, em = EventMachine)
+    def initialize(
+        uri,
+        inactivity_trigger_secs = nil,
+        inactivity_response_timeout = nil,
+        em = EventMachine)
+
       @em = em
       configure(uri)
 
       # Number of seconds of inactivity on a connection before it sends a ping
-      @inactivity_trigger_secs = 0
+      @inactivity_trigger_secs = if inactivity_trigger_secs
+        raise ArgumentError('inactivity_trigger_secs must be > 0') unless inactivity_trigger_secs.to_i > 0
+        inactivity_trigger_secs.to_i
+      end
+
       # Number of seconds of further inactivity after a ping is sent before
       # the connection is considered failed
-      @inactivity_response_timeout = 0
+      @inactivity_response_timeout = if inactivity_response_timeout
+        raise ArgumentError('inactivity_response_timeout must be > 0') unless inactivity_response_timeout.to_i > 0
+        inactivity_response_timeout.to_i
+      end
 
       # Commands received while we are not initialized, to be sent once we are
       @command_queue = []
@@ -58,19 +70,11 @@ module EventMachine::Hiredis
 
     def connect
       @client_state_machine.connect
-      self
+      return self
     end
 
     def reconnect
       @client_state_machine.reconnect
-    end
-
-    def configure_inactivity_check(trigger_secs, response_timeout)
-      raise ArgumentError('trigger_secs must be > 0') unless trigger_secs.to_i > 0
-      raise ArgumentError('response_timeout must be > 0') unless response_timeout.to_i > 0
-
-      @inactivity_trigger_secs = trigger_secs.to_i
-      @inactivity_response_timeout = response_timeout.to_i
     end
 
     ## Commands which require extra logic
@@ -93,7 +97,13 @@ module EventMachine::Hiredis
       df = EM::DefaultDeferrable.new
 
       begin
-        connection = @em.connect(@host, @port, ReqRespConnection)
+        connection = @em.connect(
+          @host,
+          @port,
+          ReqRespConnection,
+          @inactivity_trigger_secs,
+          @inactivity_response_timeout
+        )
 
         connection.on(:connected) {
           maybe_auth(connection).callback {

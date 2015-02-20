@@ -20,7 +20,7 @@ describe EM::Hiredis::BaseClient do
       @connection_index = 0
     end
 
-    def connect(host, port, connection_class)
+    def connect(host, port, connection_class, *args)
       connection = @connections[@connection_index]
       @connection_index += 1
       connection
@@ -45,7 +45,7 @@ describe EM::Hiredis::BaseClient do
   def mock_connections(expected_connections)
     em = TestEM.new(expected_connections)
 
-    yield EM::Hiredis::BaseClient.new('redis://localhost:6379/9', em), em.connections
+    yield EM::Hiredis::BaseClient.new('redis://localhost:6379/9', nil, nil, em), em.connections
 
     em.connections.each { |c| c._expectations_met! }
   end
