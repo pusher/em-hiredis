@@ -44,18 +44,18 @@ module EventMachine::Hiredis
       # Subscribes received while we are not initialized, to be sent once we are
       @command_queue = []
 
-      @client_state_machine = ClientStateMachine.new(em, method(:factory_connection))
+      @connection_manager = ConnectionManager.new(em, method(:factory_connection))
 
-      @client_state_machine.on(:connected) {
+      @connection_manager.on(:connected) {
         emit(:connected)
         set_deferred_status(:succeeded)
       }
 
-      @client_state_machine.on(:disconnected) { emit(:disconnected) }
-      @client_state_machine.on(:reconnected) { emit(:reconnected) }
-      @client_state_machine.on(:reconnect_failed) { |count| emit(:reconnect_failed, count) }
+      @connection_manager.on(:disconnected) { emit(:disconnected) }
+      @connection_manager.on(:reconnected) { emit(:reconnected) }
+      @connection_manager.on(:reconnect_failed) { |count| emit(:reconnect_failed, count) }
 
-      @client_state_machine.on(:failed) {
+      @connection_manager.on(:failed) {
         @command_queue.each { |df, _, _|
           df.fail(EM::Hiredis::Error.new('Redis connection in failed state'))
         }
@@ -67,12 +67,12 @@ module EventMachine::Hiredis
     end
 
     def connect
-      @client_state_machine.connect
+      @connection_manager.connect
       return self
     end
 
     def reconnect
-      @client_state_machine.reconnect
+      @connection_manager.reconnect
     end
 
     def subscribe(channel, proc = nil, &blk)
@@ -174,10 +174,10 @@ module EventMachine::Hiredis
         # Short circuit issuing the command if we're already subscribed
         subscriptions[channel] << cb
         df.succeed
-      elsif @client_state_machine.state == :failed
+      elsif @connection_manager.state == :failed
         df.fail('Redis connection in failed state')
-      elsif @client_state_machine.state == :connected
-        @client_state_machine.connection.send_command(df, type, channel)
+      elsif @connection_manager.state == :connected
+        @connection_manager.connection.send_command(df, type, channel)
         df.callback {
           subscriptions[channel] << cb
         }
@@ -191,8 +191,8 @@ module EventMachine::Hiredis
     def unsubscribe_impl(type, subscriptions, channel)
       if subscriptions.include?(channel)
         subscriptions.delete(channel)
-        if @client_state_machine.state == :connected
-          @client_state_machine.connection.send_command(EM::DefaultDeferrable.new, type, channel)
+        if @connection_manager.state == :connected
+          @connection_manager.connection.send_command(EM::DefaultDeferrable.new, type, channel)
         else
           noop
         end

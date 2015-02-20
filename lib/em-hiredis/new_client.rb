@@ -33,18 +33,18 @@ module EventMachine::Hiredis
       # Commands received while we are not initialized, to be sent once we are
       @command_queue = []
 
-      @client_state_machine = ClientStateMachine.new(em, method(:factory_connection))
+      @connection_manager = ConnectionManager.new(em, method(:factory_connection))
 
-      @client_state_machine.on(:connected) {
+      @connection_manager.on(:connected) {
         emit(:connected)
         set_deferred_status(:succeeded)
       }
 
-      @client_state_machine.on(:disconnected) { emit(:disconnected) }
-      @client_state_machine.on(:reconnected) { emit(:reconnected) }
-      @client_state_machine.on(:reconnect_failed) { |count| emit(:reconnect_failed, count) }
+      @connection_manager.on(:disconnected) { emit(:disconnected) }
+      @connection_manager.on(:reconnected) { emit(:reconnected) }
+      @connection_manager.on(:reconnect_failed) { |count| emit(:reconnect_failed, count) }
 
-      @client_state_machine.on(:failed) {
+      @connection_manager.on(:failed) {
         @command_queue.each { |df, _, _|
           df.fail(EM::Hiredis::Error.new('Redis connection in failed state'))
         }
@@ -56,12 +56,12 @@ module EventMachine::Hiredis
     end
 
     def connect
-      @client_state_machine.connect
+      @connection_manager.connect
       return self
     end
 
     def reconnect
-      @client_state_machine.reconnect
+      @connection_manager.reconnect
     end
 
     ## Commands which require extra logic
@@ -142,10 +142,10 @@ module EventMachine::Hiredis
       # Shortcut for defining the callback case with just a block
       df.callback(&blk) if blk
 
-      if @client_state_machine.state == :failed
+      if @connection_manager.state == :failed
         df.fail(EM::Hiredis::Error.new('Redis connection in failed state'))
-      elsif @client_state_machine.state == :connected
-        @client_state_machine.connection.send_command(df, command, args)
+      elsif @connection_manager.state == :connected
+        @connection_manager.connection.send_command(df, command, args)
       else
         @command_queue << [df, command, args]
       end

@@ -8,7 +8,7 @@ module EventMachine::Hiredis
   # * :disconnected - no longer connected, when previously in connected state
   # * :reconnect_failed(failure_number) - a reconnect attempt failed
   #     This event is passed number of failures so far (1,2,3...)
-  class ClientStateMachine
+  class ConnectionManager
     include EventEmitter
     include EventMachine::Deferrable
 
