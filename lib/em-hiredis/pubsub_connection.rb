@@ -10,6 +10,18 @@ module EventMachine::Hiredis
     def initialize(inactivity_trigger_secs = nil, inactivity_response_timeout = 2)
       @reader = ::Hiredis::Reader.new
       @response_queues = Hash.new { |h, k| h[k] = [] }
+
+      @inactivity_checker = InactivityChecker.new(inactivity_trigger_secs, inactivity_response_timeout)
+
+      @inactivity_checker.on(:activity_timeout) {
+        send_command(EM::DefaultDeferrable.new, 'subscribe', PING_CHANNEL).callback {
+          send_command(EM::DefaultDeferrable.new, 'unsubscribe', PING_CHANNEL)
+        }
+      }
+
+      @inactivity_checker.on(:response_timeout) {
+        close_connection
+      }
     end
 
     def send_command(df, command, channel)
@@ -27,17 +39,29 @@ module EventMachine::Hiredis
       @connected = true
       emit(:connected)
 
-      schedule_inactivity_checks if @inactivity_trigger_secs
+      @inactivity_checker.start
     end
 
     # EM::Connection callback
     def receive_data(data)
-      @inactive_seconds = 0
+      @inactivity_checker.activity
 
       @reader.feed(data)
       until (reply = @reader.gets) == false
         puts "reply #{reply}"
         handle_response(reply)
+      end
+    end
+
+    # EM::Connection callback
+    def unbind
+      puts "Unbind"
+      @inactivity_checker.stop
+
+      if @connected
+        emit(:disconnected)
+      else
+        emit(:connection_failed)
       end
     end
 
@@ -74,12 +98,6 @@ module EventMachine::Hiredis
       else
         raise "Unrecognised response #{reply}"
       end
-    end
-
-    def ping
-      send_command(EM::DefaultDeferrable.new, 'subscribe', [PING_CHANNEL]).callback {
-        send_command(EM::DefaultDeferrable.new, 'unsubscribe', [PING_CHANNEL])
-      }
     end
   end
 end

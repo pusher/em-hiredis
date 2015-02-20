@@ -8,10 +8,13 @@ module EventMachine::Hiredis
 
       @connected = false
 
-      @inactivity_trigger_secs = inactivity_trigger_secs
-      @inactivity_response_timeout = inactivity_response_timeout
-      @inactivity_check_timer = nil
-      @inactive_seconds = 0
+      @inactivity_checker = InactivityChecker.new(inactivity_trigger_secs, inactivity_response_timeout)
+      @inactivity_checker.on(:activity_timeout) {
+        send_command(EM::DefaultDeferrable.new, 'ping', [])
+      }
+      @inactivity_checker.on(:response_timeout) {
+        close_connection
+      }
     end
 
     def send_command(df, command, args)
@@ -26,12 +29,12 @@ module EventMachine::Hiredis
       @connected = true
       emit(:connected)
 
-      schedule_inactivity_checks if @inactivity_trigger_secs
+      @inactivity_checker.start
     end
 
     # EM::Connection callback
     def receive_data(data)
-      @inactive_seconds = 0
+      @inactivity_checker.activity
 
       @reader.feed(data)
       until (reply = @reader.gets) == false
@@ -43,7 +46,7 @@ module EventMachine::Hiredis
     # EM::Connection callback
     def unbind
       puts "Unbind"
-      cancel_inactivity_checks
+      @inactivity_checker.stop
 
       @response_queue.each { |df| df.fail(EM::Hiredis::Error.new('Redis connection lost')) }
       @response_queue.clear
@@ -86,29 +89,6 @@ module EventMachine::Hiredis
         emit(:replies_out_of_sync)
         close_connection
       end
-    end
-
-    def schedule_inactivity_checks
-      @inactive_seconds = 0
-      @inactivity_timer = EM.add_periodic_timer(1) {
-        @inactive_seconds += 1
-        puts "Checking: #{@inactive_seconds}"
-        if @inactive_seconds > @inactivity_trigger_secs + @inactivity_response_timeout
-          EM::Hiredis.logger.error "#{@connection} No response to ping, triggering reconnect"
-          close_connection
-        elsif @inactive_seconds > @inactivity_trigger_secs
-          EM::Hiredis.logger.debug "#{@connection} Connection inactive, triggering ping"
-          ping
-        end
-      }
-    end
-
-    def cancel_inactivity_checks
-      EM.cancel_timer(@inactivity_timer) if @inactivity_timer
-    end
-
-    def ping
-      send_command(EM::DefaultDeferrable.new, 'ping', [])
     end
   end
 end
