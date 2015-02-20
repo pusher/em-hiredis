@@ -16,9 +16,9 @@ module EventMachine
     end
     self.reconnect_timeout = 0.5
 
-    def self.setup(uri = nil)
+    def self.setup(uri = nil, activity_timeout = nil, response_timeout = nil)
       uri = uri || ENV["REDIS_URL"] || "redis://127.0.0.1:6379/0"
-      Client.new(uri)
+      Client.new(uri, activity_timeout, response_timeout)
     end
 
     # Connects to redis and returns a client instance
@@ -32,8 +32,8 @@ module EventMachine
     # Unix socket uris are supported, e.g. unix:///tmp/redis.sock, however
     # it's not possible to set the db or password - use initialize instead in
     # this case
-    def self.connect(uri = nil)
-      client = setup(uri)
+    def self.connect(uri = nil, activity_timeout = nil, response_timeout = nil)
+      client = setup(uri, activity_timeout, response_timeout)
       client.connect
       client
     end
