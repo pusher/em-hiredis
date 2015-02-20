@@ -51,6 +51,11 @@ module EventMachine::Hiredis
       @client_state_machine.on(:reconnect_failed) { |count| emit(:reconnect_failed, count) }
 
       @client_state_machine.on(:failed) {
+        @command_queue.each { |df, command, args|
+          df.fail(EM::Hiredis::Error.new('Redis connection in failed state'))
+        }
+        @command_queue.clear
+
         emit(:failed)
         set_deferred_status(:failed, Error.new('Could not connect after 4 attempts'))
       }
@@ -134,19 +139,6 @@ module EventMachine::Hiredis
       end
 
       return df
-    end
-
-    def connected(prev_state)
-      set_deferred_status(:succeeded)
-    end
-
-    def perm_failure(prev_state)
-      set_deferred_status(:failed, EM::Hiredis::Error.new('Could not connect after 4 attempts'))
-
-      @command_queue.each { |df, command, args|
-        df.fail(EM::Hiredis::Error.new('Redis connection in failed state'))
-      }
-      @command_queue.clear
     end
 
     def process_command(command, *args, &blk)
