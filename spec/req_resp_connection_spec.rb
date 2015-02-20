@@ -2,7 +2,7 @@ require 'spec_helper'
 
 describe EM::Hiredis::ReqRespConnection do
 
-  class NonEMReqRespConnection
+  class TestReqRespConnection
     include EM::Hiredis::ReqRespConnection
 
     attr_accessor :sent, :closed
@@ -18,13 +18,13 @@ describe EM::Hiredis::ReqRespConnection do
   end
 
   it 'should marshall command to send' do
-    con = NonEMReqRespConnection.new
+    con = TestReqRespConnection.new
     con.send_command(EM::DefaultDeferrable.new, 'set', ['x', 'true'])
     con.sent[0].should == "*3\r\n$3\r\nset\r\n$1\r\nx\r\n$4\r\ntrue\r\n"
   end
 
   it 'should succeed deferrable when response arrives' do
-    con = NonEMReqRespConnection.new
+    con = TestReqRespConnection.new
     con.connection_completed
 
     df = mock
@@ -36,7 +36,7 @@ describe EM::Hiredis::ReqRespConnection do
   end
 
   it 'should succeed deferrables in order responses arrive' do
-    con = NonEMReqRespConnection.new
+    con = TestReqRespConnection.new
     con.connection_completed
 
     df_a = mock
@@ -58,7 +58,7 @@ describe EM::Hiredis::ReqRespConnection do
   end
 
   it 'should pass response args to succeeded deferrable' do
-    con = NonEMReqRespConnection.new
+    con = TestReqRespConnection.new
     con.connection_completed
 
     df = mock
@@ -70,7 +70,7 @@ describe EM::Hiredis::ReqRespConnection do
   end
 
   it 'should fail deferrable on error response' do
-    con = NonEMReqRespConnection.new
+    con = TestReqRespConnection.new
     con.connection_completed
 
     df = mock
@@ -85,7 +85,7 @@ describe EM::Hiredis::ReqRespConnection do
   end
 
   it 'should close the connection if replies are out of sync' do
-    con = NonEMReqRespConnection.new
+    con = TestReqRespConnection.new
     con.connection_completed
 
     df = mock
@@ -100,7 +100,7 @@ describe EM::Hiredis::ReqRespConnection do
   end
 
   it 'should emit :disconnected when the connection closes' do
-    con = NonEMReqRespConnection.new
+    con = TestReqRespConnection.new
     con.connection_completed
 
     emitted = false
@@ -113,7 +113,7 @@ describe EM::Hiredis::ReqRespConnection do
   end
 
   it 'fail all pending responses when the connection closes' do
-    con = NonEMReqRespConnection.new
+    con = TestReqRespConnection.new
     con.connection_completed
 
     dfs = [mock, mock, mock]
@@ -133,7 +133,7 @@ describe EM::Hiredis::ReqRespConnection do
 
     it 'should fire after an initial period of inactivity' do
       em {
-        con = NonEMReqRespConnection.new(1, 1)
+        con = TestReqRespConnection.new(1, 1)
         con.connection_completed
 
         EM.add_timer(3) {
@@ -145,7 +145,7 @@ describe EM::Hiredis::ReqRespConnection do
 
     it 'should not fire after activity' do
       em {
-        con = NonEMReqRespConnection.new(1, 1)
+        con = TestReqRespConnection.new(1, 1)
         con.connection_completed
 
         EM.add_timer(1.5) {
@@ -162,7 +162,7 @@ describe EM::Hiredis::ReqRespConnection do
 
     it 'should fire after a later period of inactivity' do
       em {
-        con = NonEMReqRespConnection.new(1, 1)
+        con = TestReqRespConnection.new(1, 1)
         con.connection_completed
 
         EM.add_timer(1.5) {
@@ -183,7 +183,7 @@ describe EM::Hiredis::ReqRespConnection do
 
     it 'should close the connection if inactivity persists' do
       em {
-        con = NonEMReqRespConnection.new(1, 1)
+        con = TestReqRespConnection.new(1, 1)
         con.connection_completed
 
         EM.add_timer(4) {
@@ -196,7 +196,7 @@ describe EM::Hiredis::ReqRespConnection do
 
     it 'should not close the connection if there is activity after ping' do
       em {
-        con = NonEMReqRespConnection.new(1, 1)
+        con = TestReqRespConnection.new(1, 1)
         con.connection_completed
 
         EM.add_timer(2.5) {

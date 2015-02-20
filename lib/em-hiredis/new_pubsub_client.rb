@@ -68,7 +68,7 @@ module EventMachine::Hiredis
 
     # For overriding by tests to inject mock connections and avoid eventmachine
     def em_connect
-      EM.connect(@host, @port, EMPubsubConnection)
+      EM.connect(@host, @port, PubsubConnection)
     end
 
     def connect_internal(prev_state)

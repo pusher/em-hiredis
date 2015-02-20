@@ -14,7 +14,7 @@ describe EM::Hiredis::BaseClient do
 
     it 'should fire after an initial period of inactivity' do
       em {
-        con = NonEMReqRespConnection.new(1, 1)
+        con = TestReqRespConnection.new(1, 1)
         con.connection_completed
 
         EM.add_timer(3) {
@@ -26,7 +26,7 @@ describe EM::Hiredis::BaseClient do
 
     it 'should fire after a later period of inactivity' do
       em {
-        con = NonEMReqRespConnection.new(1, 1)
+        con = TestReqRespConnection.new(1, 1)
         con.connection_completed
 
         EM.add_timer(1.5) {

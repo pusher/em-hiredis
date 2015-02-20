@@ -93,7 +93,7 @@ module EventMachine::Hiredis
       df = EM::DefaultDeferrable.new
 
       begin
-        connection = @em.connect(@host, @port, EMReqRespConnection)
+        connection = @em.connect(@host, @port, ReqRespConnection)
 
         connection.on(:connected) {
           maybe_auth(connection).callback {
