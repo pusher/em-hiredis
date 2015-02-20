@@ -61,18 +61,6 @@ module EventMachine::Hiredis
       }
     end
 
-    def configure(uri_string)
-      uri = URI(uri_string)
-
-      path = uri.path[1..-1]
-      db = path.to_i # Empty path => 0
-
-      @host = uri.host
-      @port = uri.port
-      @password = uri.password
-      @db = db
-    end
-
     def connect
       @client_state_machine.connect
       return self
@@ -97,6 +85,18 @@ module EventMachine::Hiredis
     end
 
     protected
+
+    def configure(uri_string)
+      uri = URI(uri_string)
+
+      path = uri.path[1..-1]
+      db = path.to_i # Empty path => 0
+
+      @host = uri.host
+      @port = uri.port
+      @password = uri.password
+      @db = db
+    end
 
     def factory_connection
       df = EM::DefaultDeferrable.new
