@@ -83,26 +83,6 @@ module EventMachine::Hiredis
       }
     end
 
-    def maybe_reconnect(delay = false)
-      emit(:reconnect_failed, @reconnect_attempt) if @reconnect_attempt > 0
-
-      if @reconnect_attempt > 3
-        @sm.update_state(:failed)
-      else
-        @reconnect_attempt += 1
-        if delay == :delayed
-          @reconnect_timer = @em.add_timer(EventMachine::Hiredis.reconnect_timeout) {
-            @reconnect_timer = nil
-            @sm.update_state(:connecting)
-          }
-        elsif delay == :immediate
-          @sm.update_state(:connecting)
-        else
-          raise "Unrecognised delay specifier #{delay}"
-        end
-      end
-    end
-
     def connected(prev_state)
       emit(:connected)
       if @reconnect_attempt > 0
@@ -126,7 +106,24 @@ module EventMachine::Hiredis
         :delayed
       end
 
-      maybe_reconnect(delay)
+      emit(:reconnect_failed, @reconnect_attempt) if @reconnect_attempt > 0
+
+      if @reconnect_attempt > 3
+        @sm.update_state(:failed)
+      else
+        @reconnect_attempt += 1
+        if delay == :delayed
+          @reconnect_timer = @em.add_timer(EventMachine::Hiredis.reconnect_timeout) {
+            @reconnect_timer = nil
+            @sm.update_state(:connecting)
+          }
+        elsif delay == :immediate
+          @sm.update_state(:connecting)
+        else
+          raise "Unrecognised delay specifier #{delay}"
+        end
+      end
+
     end
   end
 end
