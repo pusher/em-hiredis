@@ -12,30 +12,58 @@ module EventMachine::Hiredis
     include EventEmitter
     include EventMachine::Deferrable
 
-    def initialize(uri)
-      super
+    attr_reader :host, :port, :password
+
+    def initialize(
+        uri,
+        inactivity_trigger_secs = nil,
+        inactivity_response_timeout = nil,
+        em = EventMachine)
+
+      @em = em
+      configure(uri)
+
+      # Number of seconds of inactivity on a connection before it sends a ping
+      @inactivity_trigger_secs = if inactivity_trigger_secs
+        raise ArgumentError('inactivity_trigger_secs must be > 0') unless inactivity_trigger_secs.to_i > 0
+        inactivity_trigger_secs.to_i
+      end
+
+      # Number of seconds of further inactivity after a ping is sent before
+      # the connection is considered failed
+      @inactivity_response_timeout = if inactivity_response_timeout
+        raise ArgumentError('inactivity_response_timeout must be > 0') unless inactivity_response_timeout.to_i > 0
+        inactivity_response_timeout.to_i
+      end
 
       # Subscribed channels to their callbacks
       @subscriptions = Hash.new { |h, k| h[k] = [] }
       # Subscribed patterns to their callbacks
       @psubscriptions = Hash.new { |h, k| h[k] = [] }
 
-      on(:connected) {
-        @subscriptions.keys.each { |channel| process_command(:subscribe, channel) }
-        @psubscriptions.keys.each { |pattern| process_command(:psubscribe, pattern) }
+      @client_state_machine = ClientStateMachine.new(em, method(:factory_connection))
+
+      @client_state_machine.on(:connected) {
+        emit(:connected)
+        set_deferred_status(:succeeded)
+      }
+
+      @client_state_machine.on(:disconnected) { emit(:disconnected) }
+      @client_state_machine.on(:reconnected) { emit(:reconnected) }
+      @client_state_machine.on(:reconnect_failed) { |count| emit(:reconnect_failed, count) }
+
+      @client_state_machine.on(:failed) {
+        emit(:failed)
+        set_deferred_status(:failed, Error.new('Could not connect after 4 attempts'))
       }
     end
 
     def configure(uri_string)
-      super
-      @db = 0 # pubsub operates outside the tablespace
-    end
+      uri = URI(uri_string)
 
-    ## Commands which require extra logic
-
-    def select(db, &blk)
-      # Pubsub operates outside the tablespace
-      noop
+      @host = uri.host
+      @port = uri.port
+      @password = uri.password
     end
 
     def subscribe(channel, proc = nil, &blk)
@@ -66,26 +94,54 @@ module EventMachine::Hiredis
 
     protected
 
-    # For overriding by tests to inject mock connections and avoid eventmachine
-    def em_connect
-      EM.connect(@host, @port, PubsubConnection)
-    end
+    def factory_connection
+      df = EM::DefaultDeferrable.new
 
-    def connect_internal(prev_state)
-      super
+      begin
+        connection = @em.connect(
+          @host,
+          @port,
+          PubsubConnection,
+          @inactivity_trigger_secs,
+          @inactivity_response_timeout
+        )
 
-      @connection.on(:message) { |channel, message|
-        message_callbacks(channel, message)
-      }
-      @connection.on(:pmessage) { |pattern, channel, message|
-        pmessage_callbacks(pattern, channel, message)
-      }
+        connection.on(:connected) {
+          maybe_auth(connection).callback {
+            @subscriptions.keys.each { |channel| process_command(:subscribe, channel) }
+            @psubscriptions.keys.each { |pattern| process_command(:psubscribe, pattern) }
 
-      [ :subscribe, :unsubscribe, :psubscribe, :punsubscribe ].each do |command|
-        @connection.on(command) { |args|
-          emit(command, args)
+            connection.on(:message, &method(:message_callbacks))
+            connection.on(:pmessage, &method(:pmessage_callbacks))
+
+            [ :message,
+              :pmessage,
+              :subscribe,
+              :unsubscribe,
+              :psubscribe,
+              :punsubscribe
+            ].each do |command|
+              connection.on(command) { |args|
+                emit(command, args)
+              }
+            end
+
+            df.succeed(connection)
+          }.errback { |e|
+            # Failure to auth counts as a connection failure
+            connection.close_connection
+            df.fail(e)
+          }
         }
+
+        connection.on(:connection_failed) {
+          df.fail('Connection failed')
+        }
+      rescue EventMachine::ConnectionError => e
+        df.fail(e)
       end
+
+      return df
     end
 
     def subscribe_impl(type, subscriptions, channel, cb)
@@ -125,7 +181,6 @@ module EventMachine::Hiredis
     end
 
     def message_callbacks(channel, message)
-      emit(:message, channel, message)
       cbs = @subscriptions[channel]
       if cbs
         cbs.each { |cb| cb.call(message) if cb }
@@ -133,7 +188,6 @@ module EventMachine::Hiredis
     end
 
     def pmessage_callbacks(pattern, channel, message)
-      emit(:pmessage, pattern, channel, message)
       cbs = @psubscriptions[pattern]
       if cbs
         cbs.each { |cb| cb.call(channel, message) if cb }
