@@ -13,7 +13,8 @@ module EventMachine::Hiredis
   class InactivityChecker
     include EventMachine::Hiredis::EventEmitter
 
-    def initialize(inactivity_timeout_secs, response_timeout_secs)
+    def initialize(inactivity_timeout_secs, response_timeout_secs, em = EM)
+      @em = em
       if inactivity_timeout_secs
         raise ArgumentError('inactivity_timeout_secs must be > 0') unless inactivity_timeout_secs > 0
         raise ArgumentError('response_timeout_secs must be > 0') unless response_timeout_secs > 0
@@ -30,7 +31,7 @@ module EventMachine::Hiredis
       return unless @inactivity_timeout_secs
 
       @inactive_seconds = 0
-      @inactivity_timer = EM.add_periodic_timer(1) {
+      @inactivity_timer = @em.add_periodic_timer(1) {
         @inactive_seconds += 1
         puts "Checking: #{@inactive_seconds}"
         if @inactive_seconds > @inactivity_timeout_secs + @response_timeout_secs
@@ -43,7 +44,7 @@ module EventMachine::Hiredis
     end
 
     def stop
-      EM.cancel_timer(@inactivity_timer) if @inactivity_timer
+      @em.cancel_timer(@inactivity_timer) if @inactivity_timer
     end
   end
 end
