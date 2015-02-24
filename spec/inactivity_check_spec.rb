@@ -1,5 +1,4 @@
 require 'spec_helper'
-require 'support/inprocess_redis_mock'
 
 def connect_mock(activity_timeout, response_timeout)
   em(10) do

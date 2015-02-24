@@ -1,5 +1,4 @@
 require 'spec_helper'
-require 'support/inprocess_redis_mock'
 
 def recording_server(replies = {})
   em {

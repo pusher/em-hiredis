@@ -77,7 +77,7 @@ module IRedisMock
         @parts = @parts[num_parts..-1]
 
         # Discard length declarations
-        command_line = 
+        command_line =
             command_parts
               .reject { |p| p[0] == '*' || p[0] == '$' }
               .join ' '

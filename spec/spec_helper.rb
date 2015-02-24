@@ -5,14 +5,13 @@ require 'em-spec/rspec'
 
 require 'support/mock_connection'
 require 'support/connection_helper'
-require 'support/redis_mock'
+require 'support/networked_redis_mock'
 require 'support/time_mock_eventmachine'
 require 'stringio'
 
 RSpec.configure do |config|
   config.include ConnectionHelper
   config.include EventMachine::SpecHelper
-  config.include RedisMock::Helper
 end
 
 # This speeds the tests up a bit
