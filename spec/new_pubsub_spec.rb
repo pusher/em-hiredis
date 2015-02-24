@@ -217,18 +217,36 @@ describe EM::Hiredis::PubsubClient do
     end
   end
 
-  it 'should auth if password provided' do
-    mock_connections(1, 'redis://:mypass@localhost:6379') do |client, (connection)|
-      connection._expect('auth mypass')
+  context 'auth' do
+    it 'should auth if password provided' do
+      mock_connections(1, 'redis://:mypass@localhost:6379') do |client, (connection)|
+        connection._expect('auth mypass')
 
-      connected = false
-      client.connect.callback {
-        connected = true
-      }
-      connection.connection_completed
+        connected = false
+        client.connect.callback {
+          connected = true
+        }
+        connection.connection_completed
 
-      connected.should == true
+        connected.should == true
+      end
+    end
+
+    it 'should reconnect if auth command fails' do
+      mock_connections(2, 'redis://:mypass@localhost:6379') do |client, (conn_a, conn_b)|
+        conn_a._expect('auth mypass', RuntimeError.new('OOPS'))
+        conn_b._expect('auth mypass')
+
+        connected = false
+        client.connect.callback {
+          connected = true
+        }
+        conn_a.connection_completed
+        connected.should == false
+
+        conn_b.connection_completed
+        connected.should == true
+      end
     end
   end
-
 end
