@@ -2,9 +2,9 @@ require 'spec_helper'
 
 def connect_mock(activity_timeout, response_timeout)
   em(10) do
-    IRedisMock.start
+    server = NetworkedRedisMock::RedisMock.new
     redis = EventMachine::Hiredis.connect('redis://localhost:6381', activity_timeout, response_timeout)
-    yield redis, IRedisMock
+    yield redis, server
   end
 end
 
@@ -42,7 +42,7 @@ describe EM::Hiredis::Client do
 
   it 'should ping after timeout reached even though command has been sent (no response)' do
     connect_mock(2, 1) do |redis, server|
-      IRedisMock.pause # no responses from now on
+      server.pause # no responses from now on
 
       EM.add_timer(1.5) {
         redis.get('test')
@@ -57,7 +57,7 @@ describe EM::Hiredis::Client do
 
   it 'should trigger a reconnect when theres no response to ping' do
     connect_mock(2, 1) do |redis, server|
-      IRedisMock.pause # no responses from now on
+      server.pause # no responses from now on
 
       EM.add_timer(1.5) {
         redis.get('test')

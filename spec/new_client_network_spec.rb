@@ -1,13 +1,13 @@
 require 'spec_helper'
 
-def recording_server(replies = {})
-  em {
-    IRedisMock.start(replies)
-    yield IRedisMock
-  }
-end
-
 describe EM::Hiredis::BaseClient do
+
+  def recording_server(replies = {})
+    em {
+      yield NetworkedRedisMock::RedisMock.new(replies)
+    }
+  end
+
   context 'initial connections' do
     default_timeout 1
 

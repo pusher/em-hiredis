@@ -1,62 +1,62 @@
-module IRedisMock
-  def self.start(replies = {})
-    @sig = EventMachine::start_server("127.0.0.1", 6381, Connection) { |con|
-      @connections.push(con)
-    }
-    @connections = []
-    @received = []
-    @connection_count = 0
-    @replies = replies
-    @paused = false
-  end
+module NetworkedRedisMock
 
-  def self.stop
-    EventMachine::stop_server(@sig)
-  end
+  class RedisMock
+    attr_reader :replies, :paused
 
-  def self.received
-    @received ||= []
-  end
+    def initialize(replies = {})
+      @sig = EventMachine::start_server("127.0.0.1", 6381, Connection, self) { |con|
+        @connections.push(con)
+      }
+      @connections = []
+      @received = []
+      @connection_count = 0
+      @replies = replies
+      @paused = false
+    end
 
-  def self.connection_received
-    @connection_count += 1
-  end
-  def self.connection_count
-    @connection_count
-  end
+    def stop
+      EventMachine::stop_server(@sig)
+    end
 
-  def self.pause
-    @paused = true
-  end
-  def self.unpause
-    @paused = false
-  end
+    def received
+      @received ||= []
+    end
 
-  def self.kill_connections
-    @connections.each { |c| c.close_connection }
-    @connections.clear
-  end
+    def connection_received
+      @connection_count += 1
+    end
 
-  def self.paused
-    @paused
-  end
+    def connection_count
+      @connection_count
+    end
 
-  def self.replies
-    @replies
+    def pause
+      @paused = true
+    end
+
+    def unpause
+      @paused = false
+    end
+
+    def kill_connections
+      @connections.each { |c| c.close_connection }
+      @connections.clear
+    end
   end
 
   class Connection < EventMachine::Connection
-    def initialize
+    def initialize(redis_mock)
+      @redis_mock = redis_mock
       @data = ""
       @parts = []
     end
 
     def post_init
-      IRedisMock.connection_received
+      @redis_mock.connection_received
     end
 
     def unbind
-      IRedisMock.received << 'disconnect'
+      @redis_mock.received << 'disconnect'
     end
 
     def receive_data(data)
@@ -82,8 +82,8 @@ module IRedisMock
               .reject { |p| p[0] == '*' || p[0] == '$' }
               .join ' '
 
-        if IRedisMock.replies.member?(command_line)
-          reply = IRedisMock.replies[command_line]
+        if @redis_mock.replies.member?(command_line)
+          reply = @redis_mock.replies[command_line]
         elsif command_line == '_DISCONNECT'
           close_connection
         else
@@ -92,9 +92,9 @@ module IRedisMock
 
         p "[#{command_line}] => [#{reply}]"
 
-        IRedisMock.received << command_line
+        @redis_mock.received << command_line
 
-        if IRedisMock.paused
+        if @redis_mock.paused
           puts "Paused, therefore not sending [#{reply}]"
         else
           send_data "#{reply}\r\n"
