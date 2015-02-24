@@ -89,8 +89,8 @@ module EventMachine::Hiredis
     end
 
     def monitor(&blk)
-      @monitoring = true
-      method_missing(:monitor, &blk)
+      # If the command were issued it would break the request-response model
+      raise 'monitor command not supported'
     end
 
     def info
