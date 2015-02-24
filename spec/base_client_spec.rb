@@ -33,12 +33,11 @@ describe EM::Hiredis::Client do
       redis.on(:reconnect_failed) { |count|
         count.should == expected
         expected += 1
-        done if expected == 3
+        done if expected == 5
       }
 
       redis.callback {
-        redis.configure("redis://not-a-host:9999/")
-        redis.reconnect
+        redis.reconnect("redis://not-a-host:9999/")
       }
     end
   end

@@ -71,7 +71,8 @@ module EventMachine::Hiredis
       return self
     end
 
-    def reconnect
+    def reconnect(uri = nil)
+      configure(uri) if uri
       @connection_manager.reconnect
     end
 

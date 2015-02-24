@@ -25,7 +25,6 @@ module EventMachine::Hiredis
 
       # Number of seconds of inactivity on a connection before it sends a ping
       @inactivity_trigger_secs = inactivity_trigger_secs
-
       # Number of seconds of further inactivity after a ping is sent before
       # the connection is considered failed
       @inactivity_response_timeout = inactivity_response_timeout
@@ -60,7 +59,8 @@ module EventMachine::Hiredis
       return self
     end
 
-    def reconnect
+    def reconnect(uri = nil)
+      configure(uri) if uri
       @connection_manager.reconnect
     end
 
