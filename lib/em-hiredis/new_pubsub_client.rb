@@ -147,8 +147,20 @@ module EventMachine::Hiredis
             }
             @command_queue.clear
 
-            @subscriptions.keys.each { |channel| subscribe(:subscribe, channel) }
-            @psubscriptions.keys.each { |pattern| subscribe(:psubscribe, pattern) }
+            @subscriptions.keys.each do |channel|
+              @connection_manager.connection.send_command(
+                EM::DefaultDeferrable.new,
+                :subscribe,
+                channel
+              )
+            end
+            @psubscriptions.keys.each do |pattern|
+              @connection_manager.connection.send_command(
+                EM::DefaultDeferrable.new,
+                :psubscribe,
+                pattern
+              )
+            end
 
             df.succeed(connection)
           }.errback { |e|
