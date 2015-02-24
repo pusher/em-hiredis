@@ -29,6 +29,14 @@ module EventMachine::Hiredis
       end
     end
 
+    # We special case AUTH, as it is the only req-resp model command which we
+    # allow, and it must be issued on an otherwise unused connection
+    def auth(password)
+      df = @auth_df = EM::DefaultDeferrable.new
+      send_data(marshal('auth', password))
+      return df
+    end
+
     # EM::Connection callback
     def connection_completed
       @connected = true
@@ -78,11 +86,23 @@ module EventMachine::Hiredis
     end
 
     def handle_response(reply)
-      type = reply[0]
-      if PUBSUB_MESSAGES.include?(type)
-        emit(type.to_sym, *reply[1..-1])
+      if @auth_df
+        # If we're awaiting a response to auth, we will not have sent any other commands
+        if RuntimeError === reply
+          e = EM::Hiredis::RedisError.new(reply.message)
+          e.redis_error = reply
+          @auth_df.fail(e)
+        else
+          @auth_df.succeed(reply)
+        end
+        @auth_df = nil
       else
-        raise "Unrecognised response #{reply}"
+        type = reply[0]
+        if PUBSUB_MESSAGES.include?(type)
+          emit(type.to_sym, *reply[1..-1])
+        else
+          raise "Unrecognised response #{reply}"
+        end
       end
     end
   end

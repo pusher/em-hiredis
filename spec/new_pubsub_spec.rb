@@ -219,7 +219,7 @@ describe EM::Hiredis::PubsubClient do
 
   it 'should auth if password provided' do
     mock_connections(1, 'redis://:mypass@localhost:6379') do |client, (connection)|
-      connection._expect_and_echo('auth mypass')
+      connection._expect('auth mypass')
 
       connected = false
       client.connect.callback {

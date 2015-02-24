@@ -211,16 +211,12 @@ module EventMachine::Hiredis
 
     def maybe_auth(connection)
       if @password
-        connection.send_command('auth', @password)
+        connection.auth(@password)
       else
-        noop
+        df = EM::DefaultDeferrable.new
+        df.succeed
+        df
       end
-    end
-
-    def noop
-      df = EM::DefaultDeferrable.new
-      df.succeed
-      df
     end
   end
 end
