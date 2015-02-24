@@ -10,7 +10,6 @@ module EventMachine::Hiredis
   #     This event is passed number of failures so far (1,2,3...)
   class ConnectionManager
     include EventEmitter
-    include EventMachine::Deferrable
 
     TRANSITIONS = [
       # first connect call
