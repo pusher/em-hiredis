@@ -1,19 +1,27 @@
 require 'uri'
 
 module EventMachine::Hiredis
-  # Emits the following events
+  # Emits the following events:
   #
-  # * :connected - on successful connection or reconnection
-  # * :reconnected - on successful reconnection
-  # * :disconnected - no longer connected, when previously in connected state
-  # * :reconnect_failed(failure_number) - a reconnect attempt failed
+  # - :connected - on successful connection or reconnection
+  # - :reconnected - on successful reconnection
+  # - :disconnected - no longer connected, when previously in connected state
+  # - :reconnect_failed(failure_number) - a reconnect attempt failed
   #     This event is passed number of failures so far (1,2,3...)
+  # - :failed - on failing the final reconnect attempt
   class BaseClient
     include EventEmitter
     include EventMachine::Deferrable
 
     attr_reader :host, :port, :password, :db
 
+    # uri:
+    #   the redis server to connect to, redis://[:password@]host[:port][/db]
+    # inactivity_trigger_secs:
+    #   the number of seconds of inactivity before triggering a ping to the server
+    # inactivity_response_timeout:
+    #   the number of seconds after a ping at which to terminate the connection
+    #   if there is still no activity
     def initialize(
         uri,
         inactivity_trigger_secs = nil,
@@ -54,11 +62,23 @@ module EventMachine::Hiredis
       }
     end
 
+    # Connect to the configured redis server. Returns a deferrable which
+    # completes upon successful connections or fails after all reconnect attempts
+    # are exhausted.
+    #
+    # Commands may be issued before or during connection, they will be queued
+    # and submitted to the server once the connection is active.
     def connect
       @connection_manager.connect
       return self
     end
 
+    # Reconnect, either:
+    #  - because the client has reached a failed state, but you believe the
+    #    underlying problem to be resolved
+    #  - with an optional different uri, because you wish to tear down the
+    #    connection and connect to a different redis server, perhaps as part of
+    #    a failover
     def reconnect(uri = nil)
       configure(uri) if uri
       @connection_manager.reconnect
@@ -73,7 +93,7 @@ module EventMachine::Hiredis
     end
 
     def auth(password, &blk)
-      process_command('auth', db, &blk).callback {
+      process_command('auth', password, &blk).callback {
         @password = password
       }
     end
