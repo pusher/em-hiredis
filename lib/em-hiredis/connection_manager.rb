@@ -14,8 +14,9 @@ module EventMachine::Hiredis
     TRANSITIONS = [
       # first connect call
       [ :initial, :connecting ],
-      # TCP connect fails
+      # TCP connect, or initialisation commands fail
       [ :connecting, :disconnected ],
+      # Connection ready for use by clients
       [ :connecting, :connected ],
       # connection lost
       [ :connected, :disconnected ],
