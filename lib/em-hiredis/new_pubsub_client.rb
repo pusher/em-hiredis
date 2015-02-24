@@ -189,6 +189,9 @@ module EventMachine::Hiredis
         }
       else
         @command_queue << [df, type, channel]
+        df.callback {
+          subscriptions[channel] << cb
+        }
       end
 
       return df
