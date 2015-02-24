@@ -1,6 +1,5 @@
 module EventMachine::Hiredis
   module MockConnection
-
     def send_data(data)
       @expectations ||= []
       expectation = @expectations.shift
@@ -42,6 +41,36 @@ module EventMachine::Hiredis
       if @expectations && @expectations.length > 0
         fail("Did not receive expected command #{@expectations.shift}")
       end
+    end
+  end
+
+  class MockConnectionEM
+    attr_reader :connections
+
+    def initialize(expected_connections, conn_class)
+      @timers = Set.new
+      @connections = []
+      expected_connections.times { @connections << conn_class.new }
+      @connection_index = 0
+    end
+
+    def connect(host, port, connection_class, *args)
+      connection = @connections[@connection_index]
+      @connection_index += 1
+      connection
+    end
+
+    def add_timer(delay, &blk)
+      timer = Object.new
+      @timers.add(timer)
+      blk.call
+
+      return timer
+    end
+
+    def cancel_timer(timer)
+      marker = @timers.delete(timer)
+      marker.should_not == nil
     end
   end
 end

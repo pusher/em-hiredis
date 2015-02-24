@@ -9,40 +9,10 @@ describe EM::Hiredis::PubsubClient do
     include EM::Hiredis::MockConnection
   end
 
-  class TestEM
-    attr_reader :connections
-
-    def initialize(expected_connections)
-      @timers = Set.new
-      @connections = []
-      expected_connections.times { @connections << PubsubTestConnection.new }
-      @connection_index = 0
-    end
-
-    def connect(host, port, connection_class, *args)
-      connection = @connections[@connection_index]
-      @connection_index += 1
-      connection
-    end
-
-    def add_timer(delay, &blk)
-      timer = Object.new
-      @timers.add(timer)
-      blk.call
-
-      return timer
-    end
-
-    def cancel_timer(timer)
-      marker = @timers.delete(timer)
-      marker.should_not == nil
-    end
-  end
-
   # Create expected_connections connections, inject them in order in to the
   # client as it creates new ones
   def mock_connections(expected_connections, uri = 'redis://localhost:6379')
-    em = TestEM.new(expected_connections)
+    em = EM::Hiredis::MockConnectionEM.new(expected_connections, PubsubTestConnection)
 
     yield EM::Hiredis::PubsubClient.new(uri, nil, nil, em), em.connections
 
