@@ -51,14 +51,12 @@ module EventMachine::Hiredis
 
       @reader.feed(data)
       until (reply = @reader.gets) == false
-        puts "reply #{reply}"
         handle_response(reply)
       end
     end
 
     # EM::Connection callback
     def unbind
-      puts "Unbind"
       @inactivity_checker.stop
 
       if @connected

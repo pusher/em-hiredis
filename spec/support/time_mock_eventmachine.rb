@@ -65,9 +65,8 @@ module EventMachine::Hiredis
 
         t = @timers.first
         @current_time = t.due
-puts @current_time
-        remove = t.fire(@current_time)
 
+        remove = t.fire(@current_time)
         @timers.delete(t) if remove
       end
     end

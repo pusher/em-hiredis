@@ -19,7 +19,6 @@ module EventMachine::Hiredis
 
     def send_command(df, command, args)
       @response_queue.push(df)
-      puts "send #{command} #{args}"
       send_data(marshal(command, *args))
       return df
     end
@@ -38,14 +37,12 @@ module EventMachine::Hiredis
 
       @reader.feed(data)
       until (reply = @reader.gets) == false
-        puts "reply #{reply}"
         handle_response(reply)
       end
     end
 
     # EM::Connection callback
     def unbind
-      puts "Unbind"
       @inactivity_checker.stop
 
       @response_queue.each { |df| df.fail(EM::Hiredis::Error.new('Redis connection lost')) }

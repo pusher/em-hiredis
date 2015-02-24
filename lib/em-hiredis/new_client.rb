@@ -136,8 +136,6 @@ module EventMachine::Hiredis
     end
 
     def process_command(command, *args, &blk)
-      puts "process command #{command}"
-
       df = EM::DefaultDeferrable.new
       # Shortcut for defining the callback case with just a block
       df.callback(&blk) if blk

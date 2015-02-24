@@ -1,4 +1,5 @@
 module EventMachine::Hiredis
+
   module MockConnection
     def send_data(data)
       @expectations ||= []

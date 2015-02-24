@@ -90,13 +90,9 @@ module NetworkedRedisMock
           reply = "+OK"
         end
 
-        p "[#{command_line}] => [#{reply}]"
-
         @redis_mock.received << command_line
 
-        if @redis_mock.paused
-          puts "Paused, therefore not sending [#{reply}]"
-        else
+        unless @redis_mock.paused
           send_data "#{reply}\r\n"
         end
       end

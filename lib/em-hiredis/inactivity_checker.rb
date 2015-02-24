@@ -33,7 +33,6 @@ module EventMachine::Hiredis
       @inactive_seconds = 0
       @inactivity_timer = @em.add_periodic_timer(1) {
         @inactive_seconds += 1
-        puts "Checking: #{@inactive_seconds}"
         if @inactive_seconds > @inactivity_timeout_secs + @response_timeout_secs
           emit(:response_timeout, @inactive_seconds)
           @inactive_seconds = 0 # or we'll continue to fire each second
