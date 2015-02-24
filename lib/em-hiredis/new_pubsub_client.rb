@@ -57,7 +57,7 @@ module EventMachine::Hiredis
       # Subscribes received while we are not initialized, to be sent once we are
       @command_queue = []
 
-      @connection_manager = ConnectionManager.new(em, method(:factory_connection))
+      @connection_manager = ConnectionManager.new(method(:factory_connection), em)
 
       @connection_manager.on(:connected) {
         emit(:connected)

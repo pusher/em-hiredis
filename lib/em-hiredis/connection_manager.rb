@@ -1,12 +1,13 @@
 require 'uri'
 
 module EventMachine::Hiredis
-  # Emits the following events
+  # Manages EventMachine connections in order to provide reconnections.
   #
-  # * :connected - on successful connection or reconnection
-  # * :reconnected - on successful reconnection
-  # * :disconnected - no longer connected, when previously in connected state
-  # * :reconnect_failed(failure_number) - a reconnect attempt failed
+  # Emits the following events
+  # - :connected - on successful connection or reconnection
+  # - :reconnected - on successful reconnection
+  # - :disconnected - no longer connected, when previously in connected state
+  # - :reconnect_failed(failure_number) - a reconnect attempt failed
   #     This event is passed number of failures so far (1,2,3...)
   class ConnectionManager
     include EventEmitter
@@ -28,7 +29,11 @@ module EventMachine::Hiredis
       [ :failed, :connecting ],
     ]
 
-    def initialize(em, connection_factory)
+    # connection_factory: an object which responds to `call` by returning a
+    #   deferrable which succeeds with a connected and initialised instance
+    #   of EMConnection or fails if the connection was unsuccessful.
+    #   Failures will be retried
+    def initialize(connection_factory, em = EM)
       @em = em
       @connection_factory = connection_factory
 
@@ -59,6 +64,8 @@ module EventMachine::Hiredis
       @sm.state
     end
 
+    # Access to the underlying connection. Care must be taken to ensure that the
+    # `state` is :connected before this is used.
     def connection
       @connection
     end
@@ -75,8 +82,8 @@ module EventMachine::Hiredis
         @connection = connection
         @sm.update_state(:connected)
 
-        @connection.on(:disconnected) {
-          @sm.update_state(:disconnected)
+        connection.on(:disconnected) {
+          @sm.update_state(:disconnected) if @connection == connection
         }
       }.errback {
         @sm.update_state(:disconnected)
