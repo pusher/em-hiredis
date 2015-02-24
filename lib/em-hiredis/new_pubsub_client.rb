@@ -49,11 +49,6 @@ module EventMachine::Hiredis
       @connection_manager.on(:reconnect_failed) { |count| emit(:reconnect_failed, count) }
 
       @connection_manager.on(:failed) {
-        @command_queue.each { |df, _, _|
-          df.fail(EM::Hiredis::Error.new('Redis connection in failed state'))
-        }
-        @command_queue.clear
-
         emit(:failed)
         set_deferred_status(:failed, Error.new('Could not connect after 4 attempts'))
       }
@@ -135,21 +130,14 @@ module EventMachine::Hiredis
               }
             end
 
-            @command_queue.each { |df, command, args|
-              connection.send_command(df, command, args)
-            }
-            @command_queue.clear
-
             @subscriptions.keys.each do |channel|
-              @connection_manager.connection.send_command(
-                EM::DefaultDeferrable.new,
+              connection.send_command(
                 :subscribe,
                 channel
               )
             end
             @psubscriptions.keys.each do |pattern|
-              @connection_manager.connection.send_command(
-                EM::DefaultDeferrable.new,
+              connection.send_command(
                 :psubscribe,
                 pattern
               )
@@ -174,55 +162,37 @@ module EventMachine::Hiredis
     end
 
     def subscribe_impl(type, subscriptions, channel, cb)
-      df = EM::DefaultDeferrable.new
-
       if subscriptions.include?(channel)
         # Short circuit issuing the command if we're already subscribed
         subscriptions[channel] << cb
-        df.succeed
       elsif @connection_manager.state == :failed
-        df.fail('Redis connection in failed state')
+        # TODO this is not an OK way of signally failure
+        raise('Redis connection in failed state')
       elsif @connection_manager.state == :connected
-        @connection_manager.connection.send_command(df, type, channel)
-        df.callback {
-          subscriptions[channel] << cb
-        }
+        @connection_manager.connection.send_command(type, channel)
+        subscriptions[channel] << cb
       else
-        @command_queue << [df, type, channel]
-        df.callback {
-          subscriptions[channel] << cb
-        }
+        # We will issue subscription command when we connect
+        subscriptions[channel] << cb
       end
-
-      return df
     end
 
     def unsubscribe_impl(type, subscriptions, channel)
       if subscriptions.include?(channel)
         subscriptions.delete(channel)
         if @connection_manager.state == :connected
-          @connection_manager.connection.send_command(EM::DefaultDeferrable.new, type, channel)
-        else
-          noop
+          @connection_manager.connection.send_command(type, channel)
         end
       end
     end
 
     def unsubscribe_proc_impl(type, subscriptions, channel, proc)
-      df = EM::DefaultDeferrable.new
-      if subscriptions[channel].delete(proc)
-        if subscriptions[channel].any?
-          # Succeed deferrable immediately - no need to unsubscribe
-          df.succeed
-        else
-          unsubscribe_impl(type, subscriptions, channel).callback {
-            df.succeed
-          }
-        end
-      else
-        df.fail
+      removed = subscriptions[channel].delete(proc)
+
+      # Kill the redis subscription if that was the last callback
+      if removed && subscriptions[channel].empty?
+        unsubscribe_impl(type, subscriptions, channel)
       end
-      return df
     end
 
     def message_callbacks(channel, message)
@@ -241,7 +211,7 @@ module EventMachine::Hiredis
 
     def maybe_auth(connection)
       if @password
-        connection.send_command(EM::DefaultDeferrable.new, 'auth', @password)
+        connection.send_command('auth', @password)
       else
         noop
       end

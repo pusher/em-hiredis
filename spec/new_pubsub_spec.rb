@@ -2,7 +2,6 @@ require 'spec_helper'
 require 'support/inprocess_redis_mock'
 
 describe EM::Hiredis::PubsubClient do
-  default_timeout 4
 
   class PubsubTestConnection
     include EM::Hiredis::PubsubConnection
@@ -19,149 +18,202 @@ describe EM::Hiredis::PubsubClient do
     em.connections.each { |c| c._expectations_met! }
   end
 
-  it "should unsubscribe all callbacks for a channel on unsubscribe" do
-    mock_connections(1) do |client, (connection)|
-      client.connect
-      connection.connection_completed
+  context '(un)subscribing' do
+    it "should unsubscribe all callbacks for a channel on unsubscribe" do
+      mock_connections(1) do |client, (connection)|
+        client.connect
+        connection.connection_completed
 
-      connection._expect_and_echo('subscribe channel')
-      connection._expect_and_echo('unsubscribe channel')
+        connection._expect_and_echo('subscribe channel')
+        connection._expect_and_echo('unsubscribe channel')
 
-      # Block subscription
-      df_block = client.subscribe('channel') { |m| fail }
-      # Proc example
-      df_proc = client.subscribe('channel', Proc.new { |m| fail })
+        # Block subscription
+        client.subscribe('channel') { |m| fail }
+        # Proc example
+        client.subscribe('channel', Proc.new { |m| fail })
 
-      df_block.callback {
-        df_proc.callback {
-          client.unsubscribe('channel').callback {
-            connection.emit(:message, 'channel', 'hello')
-          }
-        }
-      }
+        client.unsubscribe('channel')
+        connection.emit(:message, 'channel', 'hello')
+      end
+    end
+
+    it "should allow selective unsubscription" do
+      mock_connections(1) do |client, (connection)|
+        client.connect
+        connection.connection_completed
+
+        connection._expect_and_echo('subscribe channel')
+
+        received_messages = 0
+
+        # Block subscription
+        client.subscribe('channel') { |m| received_messages += 1 } # block
+        # Proc example (will be unsubscribed again before message is sent)
+        proc = Proc.new { |m| fail }
+        client.subscribe('channel', proc)
+
+        client.unsubscribe_proc('channel', proc)
+        connection.emit(:message, 'channel', 'hello')
+
+        received_messages.should == 1
+      end
+    end
+
+    it "should unsubscribe from redis when all subscriptions for a channel are unsubscribed" do
+      mock_connections(1) do |client, (connection)|
+        client.connect
+        connection.connection_completed
+
+        connection._expect_and_echo('subscribe channel')
+
+        proc_a = Proc.new { |m| fail }
+        client.subscribe('channel', proc_a)
+        proc_b = Proc.new { |m| fail }
+        client.subscribe('channel', proc_b)
+
+        # Unsubscribe first
+        client.unsubscribe_proc('channel', proc_a)
+
+        # Unsubscribe second, should unsubscribe in redis
+        connection._expect_and_echo('unsubscribe channel')
+        client.unsubscribe_proc('channel', proc_b)
+
+        # Check callbacks were removed
+        connection.emit(:message, 'channel', 'hello')
+      end
+    end
+
+    it "should punsubscribe all callbacks for a pattern on punsubscribe" do
+      mock_connections(1) do |client, (connection)|
+        client.connect
+        connection.connection_completed
+
+        connection._expect_and_echo('psubscribe channel:*')
+
+        # Block subscription
+        client.psubscribe('channel:*') { |m| fail }
+        # Proc example
+        client.psubscribe('channel:*', Proc.new { |m| fail })
+
+        connection._expect_and_echo('punsubscribe channel:*')
+        client.punsubscribe('channel:*')
+
+        connection.emit(:pmessage, 'channel:*', 'channel:hello', 'hello')
+      end
+    end
+
+    it "should allow selective punsubscription" do
+      mock_connections(1) do |client, (connection)|
+        client.connect
+        connection.connection_completed
+
+        connection._expect_and_echo('psubscribe channel:*')
+
+        received_messages = 0
+
+        # Block subscription
+        client.psubscribe('channel:*') { |m| received_messages += 1 }
+        # Proc example
+        proc = Proc.new { |m| fail }
+        client.psubscribe('channel:*', proc)
+
+        client.punsubscribe_proc('channel:*', proc)
+        connection.emit(:pmessage, 'channel:*', 'channel:hello', 'hello')
+
+        received_messages.should == 1
+      end
+    end
+
+    it "should punsubscribe from redis when all psubscriptions for a pattern are punsubscribed" do
+      mock_connections(1) do |client, (connection)|
+        client.connect
+        connection.connection_completed
+
+        connection._expect_and_echo('psubscribe channel:*')
+
+        proc_a = Proc.new { |m| fail }
+        client.psubscribe('channel:*', proc_a)
+        proc_b = Proc.new { |m| fail }
+        client.psubscribe('channel:*', proc_b)
+
+        # Unsubscribe first
+        client.punsubscribe_proc('channel:*', proc_a)
+
+        # Unsubscribe second, should unsubscribe in redis
+        connection._expect_and_echo('punsubscribe channel:*')
+        client.punsubscribe_proc('channel:*', proc_b)
+
+        # Check callbacks were removed
+        connection.emit(:pmessage, 'channel:*', 'channel:hello', 'hello')
+      end
     end
   end
 
-  it "should allow selective unsubscription" do
-    mock_connections(1) do |client, (connection)|
-      client.connect
-      connection.connection_completed
-      connection._expect_and_echo('subscribe channel')
+  context 'reconnection' do
+    it 'should resubscribe all existing on reconnection' do
+      mock_connections(2) do |client, (conn_a, conn_b)|
+        client.connect
+        conn_a.connection_completed
 
-      received_messages = 0
+        channels = %w{foo bar baz}
+        patterns = %w{foo:* bar:*:baz}
 
-      # Block subscription
-      df_block = client.subscribe('channel') { |m| received_messages += 1 } # block
-      # Proc example
-      proc = Proc.new { |m| fail }
-      df_proc = client.subscribe('channel', proc)
+        received_subs = []
 
-      df_block.callback {
-        df_proc.callback {
-          client.unsubscribe_proc('channel', proc).callback {
-            connection.emit(:message, 'channel', 'hello')
+        # Make some subscriptions to various channels and patterns
+        channels.each do |c|
+          conn_a._expect_and_echo("subscribe #{c}")
+          client.subscribe(c) { |message|
+            received_subs << c
           }
-        }
-      }
+        end
 
-      received_messages.should == 1
-    end
-  end
-
-  it "should unsubscribe from redis when all subscriptions for a channel are unsubscribed" do
-    mock_connections(1) do |client, (connection)|
-      client.connect
-      connection.connection_completed
-      connection._expect_and_echo('subscribe channel')
-      connection._expect_and_echo('unsubscribe channel')
-
-      proc_a = Proc.new { |m| fail }
-      df_a = client.subscribe('channel', proc_a)
-      proc_b = Proc.new { |m| fail }
-      df_b = client.subscribe('channel', proc_b)
-
-      df_a.callback {
-        df_b.callback {
-          client.unsubscribe_proc('channel', proc_a).callback {
-            client.unsubscribe_proc('channel', proc_b).callback {
-              connection.emit(:message, 'channel', 'hello')
-            }
+        patterns.each do |p|
+          conn_a._expect_and_echo("psubscribe #{p}")
+          client.psubscribe(p) { |channel, message|
+            received_subs << p
           }
-        }
-      }
-    end
-  end
+        end
 
-  it "should punsubscribe all callbacks for a pattern on punsubscribe" do
-    mock_connections(1) do |client, (connection)|
-      client.connect
-      connection.connection_completed
+        # Check that those subscriptions receive messages
+        channels.each do |c|
+          conn_a.emit(:message, c, 'message content')
+          received_subs.select { |e| e == c }.length.should == 1
+        end
 
-      connection._expect_and_echo('psubscribe channel:*')
-      connection._expect_and_echo('punsubscribe channel:*')
+        patterns.each do |p|
+          channel = p.gsub('*', 'test')
+          conn_a.emit(:pmessage, p, channel, 'message content')
+          received_subs.select { |e| e == p }.length.should == 1
+        end
 
-      # Block subscription
-      df_block = client.psubscribe('channel:*') { |m| fail }
-      # Proc example
-      df_proc = client.psubscribe('channel:*', Proc.new { |m| fail })
+        # Trigger a reconnection
+        conn_a.unbind
 
-      df_block.callback {
-        df_proc.callback {
-          client.punsubscribe('channel:*').callback {
-            connection.emit(:pmessage, 'channel:*', 'channel:hello', 'hello')
-          }
-        }
-      }
-    end
-  end
+        # All subs previously made should be re-made
+        channels.each do |c|
+          conn_b._expect_and_echo("subscribe #{c}")
+        end
 
-  it "should allow selective punsubscription" do
-    mock_connections(1) do |client, (connection)|
-      client.connect
-      connection.connection_completed
-      connection._expect_and_echo('psubscribe channel:*')
+        patterns.each do |p|
+          conn_b._expect_and_echo("psubscribe #{p}")
+        end
 
-      received_messages = 0
+        conn_b.connection_completed
 
-      # Block subscription
-      df_block = client.psubscribe('channel:*') { |m| received_messages += 1 } # block
-      # Proc example
-      proc = Proc.new { |m| fail }
-      df_proc = client.psubscribe('channel:*', proc)
+        # Check the callbacks are still attached correctly
+        channels.each do |c|
+          conn_b.emit(:message, c, 'message content')
+          received_subs.select { |e| e == c }.length.should == 2
+        end
 
-      df_block.callback {
-        df_proc.callback {
-          client.punsubscribe_proc('channel:*', proc).callback {
-            connection.emit(:pmessage, 'channel:*', 'channel:hello', 'hello')
-          }
-        }
-      }
+        patterns.each do |p|
+          channel = p.gsub('*', 'test')
+          conn_b.emit(:pmessage, p, channel, 'message content')
+          received_subs.select { |e| e == p }.length.should == 2
+        end
 
-      received_messages.should == 1
-    end
-  end
-
-  it "should punsubscribe from redis when all psubscriptions for a pattern are punsubscribed" do
-    mock_connections(1) do |client, (connection)|
-      client.connect
-      connection.connection_completed
-      connection._expect_and_echo('psubscribe channel:*')
-      connection._expect_and_echo('punsubscribe channel:*')
-
-      proc_a = Proc.new { |m| fail }
-      df_a = client.psubscribe('channel:*', proc_a)
-      proc_b = Proc.new { |m| fail }
-      df_b = client.psubscribe('channel:*', proc_b)
-
-      df_a.callback {
-        df_b.callback {
-          client.punsubscribe_proc('channel:*', proc_a).callback {
-            client.punsubscribe_proc('channel:*', proc_b).callback {
-              connection.emit(:pmessage, 'channel:*', 'channel:hello', 'hello')
-            }
-          }
-        }
-      }
+      end
     end
   end
 
