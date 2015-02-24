@@ -89,8 +89,6 @@ module EventMachine::Hiredis
         emit(:reconnected)
         @reconnect_attempt = 0
       end
-
-      set_deferred_status(:succeeded)
     end
 
     def perm_failure(prev_state)
@@ -114,7 +112,6 @@ module EventMachine::Hiredis
         @reconnect_attempt += 1
         if delay == :delayed
           @reconnect_timer = @em.add_timer(EventMachine::Hiredis.reconnect_timeout) {
-            @reconnect_timer = nil
             @sm.update_state(:connecting)
           }
         elsif delay == :immediate
