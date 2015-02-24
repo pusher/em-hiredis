@@ -24,17 +24,10 @@ module EventMachine::Hiredis
       configure(uri)
 
       # Number of seconds of inactivity on a connection before it sends a ping
-      @inactivity_trigger_secs = if inactivity_trigger_secs
-        raise ArgumentError('inactivity_trigger_secs must be > 0') unless inactivity_trigger_secs.to_i > 0
-        inactivity_trigger_secs.to_i
-      end
-
+      @inactivity_trigger_secs = inactivity_trigger_secs
       # Number of seconds of further inactivity after a ping is sent before
       # the connection is considered failed
-      @inactivity_response_timeout = if inactivity_response_timeout
-        raise ArgumentError('inactivity_response_timeout must be > 0') unless inactivity_response_timeout.to_i > 0
-        inactivity_response_timeout.to_i
-      end
+      @inactivity_response_timeout = inactivity_response_timeout
 
       # Subscribed channels to their callbacks
       @subscriptions = Hash.new { |h, k| h[k] = [] }
