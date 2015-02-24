@@ -31,10 +31,7 @@ module EventMachine::Hiredis
       @em = em
       configure(uri)
 
-      # Number of seconds of inactivity on a connection before it sends a ping
       @inactivity_trigger_secs = inactivity_trigger_secs
-      # Number of seconds of further inactivity after a ping is sent before
-      # the connection is considered failed
       @inactivity_response_timeout = inactivity_response_timeout
 
       # Commands received while we are not initialized, to be sent once we are
