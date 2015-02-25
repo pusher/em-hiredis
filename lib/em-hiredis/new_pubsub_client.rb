@@ -46,9 +46,11 @@ module EventMachine::Hiredis
       @inactivity_trigger_secs = inactivity_trigger_secs
       @inactivity_response_timeout = inactivity_response_timeout
 
-      # Subscribed channels to their callbacks
+      # Subscribed channels and patterns to their callbacks
+      # nil is a valid "callback", required because even if the user is using
+      # emitted events rather than callbacks to consume their messages, we still
+      # need to mark the fact that we are subscribed.
       @subscriptions = Hash.new { |h, k| h[k] = [] }
-      # Subscribed patterns to their callbacks
       @psubscriptions = Hash.new { |h, k| h[k] = [] }
 
       @connection_manager = ConnectionManager.new(method(:factory_connection), em)

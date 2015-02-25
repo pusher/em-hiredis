@@ -9,13 +9,14 @@ module EventMachine::Hiredis
 
     def initialize(inactivity_trigger_secs = nil, inactivity_response_timeout = 2)
       @reader = ::Hiredis::Reader.new
-      @inactivity_checker = InactivityChecker.new(inactivity_trigger_secs, inactivity_response_timeout)
 
+      @connected = false
+
+      @inactivity_checker = InactivityChecker.new(inactivity_trigger_secs, inactivity_response_timeout)
       @inactivity_checker.on(:activity_timeout) {
         send_command('subscribe', PING_CHANNEL)
         send_command('unsubscribe', PING_CHANNEL)
       }
-
       @inactivity_checker.on(:response_timeout) {
         close_connection
       }

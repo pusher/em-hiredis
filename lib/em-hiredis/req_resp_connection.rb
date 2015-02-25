@@ -3,7 +3,9 @@ module EventMachine::Hiredis
     include EventMachine::Hiredis::EventEmitter
 
     def initialize(inactivity_trigger_secs = nil, inactivity_response_timeout = 2)
+      # Parser for incoming replies
       @reader = ::Hiredis::Reader.new
+      # Queue of deferrables awaiting replies
       @response_queue = []
 
       @connected = false
