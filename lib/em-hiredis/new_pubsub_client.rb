@@ -158,18 +158,8 @@ module EventMachine::Hiredis
               }
             end
 
-            @subscriptions.keys.each do |channel|
-              connection.send_command(
-                :subscribe,
-                channel
-              )
-            end
-            @psubscriptions.keys.each do |pattern|
-              connection.send_command(
-                :psubscribe,
-                pattern
-              )
-            end
+            connection.send_command(:subscribe, *@subscriptions.keys) if @subscriptions.any?
+            connection.send_command(:psubscribe, *@psubscriptions.keys) if @psubscriptions.any?
 
             df.succeed(connection)
           }.errback { |e|

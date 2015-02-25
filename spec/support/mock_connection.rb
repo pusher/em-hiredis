@@ -7,9 +7,18 @@ module EventMachine::Hiredis
       if expectation
         data.to_s.should == expectation[:command]
 
+        # Normal commands get one response each
         handle_response(expectation[:response]) if expectation[:response]
+
+        # But some pubsub commands can trigger many responses
+        # (e.g. 'subscribe a b c' gets one subscribe response for each of a b and c)
+        if expectation[:multi_response]
+          expectation[:multi_response].each do |response|
+            handle_response(response)
+          end
+        end
       else
-        fail("Unexpected command #{command}, #{args}")
+        raise "Unexpected command #{data.inspect}"
       end
     end
 
@@ -34,8 +43,19 @@ module EventMachine::Hiredis
 
     # Expect and command and response with same
     # This is the basic form of the redis pubsub protocol's acknowledgements
-    def _expect_and_echo(command)
-      _expect(command, command.split(' '))
+    def _expect_pubsub(command)
+      @expectations ||= []
+
+      parts = command.split(' ')
+      if parts.length == 2
+        @expectations << { command: command, response: parts }
+      else
+        channels = parts[1..-1]
+        @expectations << {
+          command: command,
+          multi_response: channels.map { |channel| [parts[0], channel] }
+        }
+      end
     end
 
     def _expectations_met!

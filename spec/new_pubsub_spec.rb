@@ -23,8 +23,8 @@ describe EM::Hiredis::PubsubClient do
         client.connect
         connection.connection_completed
 
-        connection._expect_and_echo('subscribe channel')
-        connection._expect_and_echo('unsubscribe channel')
+        connection._expect_pubsub('subscribe channel')
+        connection._expect_pubsub('unsubscribe channel')
 
         # Block subscription
         client.subscribe('channel') { |m| fail }
@@ -41,7 +41,7 @@ describe EM::Hiredis::PubsubClient do
         client.connect
         connection.connection_completed
 
-        connection._expect_and_echo('subscribe channel')
+        connection._expect_pubsub('subscribe channel')
 
         received_messages = 0
 
@@ -63,7 +63,7 @@ describe EM::Hiredis::PubsubClient do
         client.connect
         connection.connection_completed
 
-        connection._expect_and_echo('subscribe channel')
+        connection._expect_pubsub('subscribe channel')
 
         proc_a = Proc.new { |m| fail }
         client.subscribe('channel', proc_a)
@@ -74,7 +74,7 @@ describe EM::Hiredis::PubsubClient do
         client.unsubscribe_proc('channel', proc_a)
 
         # Unsubscribe second, should unsubscribe in redis
-        connection._expect_and_echo('unsubscribe channel')
+        connection._expect_pubsub('unsubscribe channel')
         client.unsubscribe_proc('channel', proc_b)
 
         # Check callbacks were removed
@@ -87,14 +87,14 @@ describe EM::Hiredis::PubsubClient do
         client.connect
         connection.connection_completed
 
-        connection._expect_and_echo('psubscribe channel:*')
+        connection._expect_pubsub('psubscribe channel:*')
 
         # Block subscription
         client.psubscribe('channel:*') { |m| fail }
         # Proc example
         client.psubscribe('channel:*', Proc.new { |m| fail })
 
-        connection._expect_and_echo('punsubscribe channel:*')
+        connection._expect_pubsub('punsubscribe channel:*')
         client.punsubscribe('channel:*')
 
         connection.emit(:pmessage, 'channel:*', 'channel:hello', 'hello')
@@ -106,7 +106,7 @@ describe EM::Hiredis::PubsubClient do
         client.connect
         connection.connection_completed
 
-        connection._expect_and_echo('psubscribe channel:*')
+        connection._expect_pubsub('psubscribe channel:*')
 
         received_messages = 0
 
@@ -128,7 +128,7 @@ describe EM::Hiredis::PubsubClient do
         client.connect
         connection.connection_completed
 
-        connection._expect_and_echo('psubscribe channel:*')
+        connection._expect_pubsub('psubscribe channel:*')
 
         proc_a = Proc.new { |m| fail }
         client.psubscribe('channel:*', proc_a)
@@ -139,7 +139,7 @@ describe EM::Hiredis::PubsubClient do
         client.punsubscribe_proc('channel:*', proc_a)
 
         # Unsubscribe second, should unsubscribe in redis
-        connection._expect_and_echo('punsubscribe channel:*')
+        connection._expect_pubsub('punsubscribe channel:*')
         client.punsubscribe_proc('channel:*', proc_b)
 
         # Check callbacks were removed
@@ -161,14 +161,14 @@ describe EM::Hiredis::PubsubClient do
 
         # Make some subscriptions to various channels and patterns
         channels.each do |c|
-          conn_a._expect_and_echo("subscribe #{c}")
+          conn_a._expect_pubsub("subscribe #{c}")
           client.subscribe(c) { |message|
             received_subs << c
           }
         end
 
         patterns.each do |p|
-          conn_a._expect_and_echo("psubscribe #{p}")
+          conn_a._expect_pubsub("psubscribe #{p}")
           client.psubscribe(p) { |channel, message|
             received_subs << p
           }
@@ -190,13 +190,8 @@ describe EM::Hiredis::PubsubClient do
         conn_a.unbind
 
         # All subs previously made should be re-made
-        channels.each do |c|
-          conn_b._expect_and_echo("subscribe #{c}")
-        end
-
-        patterns.each do |p|
-          conn_b._expect_and_echo("psubscribe #{p}")
-        end
+        conn_b._expect_pubsub("subscribe #{channels.join(' ')}")
+        conn_b._expect_pubsub("psubscribe #{patterns.join(' ')}")
 
         conn_b.connection_completed
 

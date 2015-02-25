@@ -22,9 +22,9 @@ module EventMachine::Hiredis
       }
     end
 
-    def send_command(command, channel)
+    def send_command(command, *channels)
       if PUBSUB_COMMANDS.include?(command.to_s)
-        send_data(marshal(command, channel))
+        send_data(marshal(command, *channels))
       else
         raise "Cannot send command '#{command}' on Pubsub connection"
       end
