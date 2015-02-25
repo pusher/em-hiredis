@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe EM::Hiredis::BaseClient do
+describe EM::Hiredis::Client do
   default_timeout 4
 
   class ClientTestConnection
@@ -13,7 +13,7 @@ describe EM::Hiredis::BaseClient do
   def mock_connections(expected_connections)
     em = EM::Hiredis::MockConnectionEM.new(expected_connections, ClientTestConnection)
 
-    yield EM::Hiredis::BaseClient.new('redis://localhost:6379/9', nil, nil, em), em.connections
+    yield EM::Hiredis::Client.new('redis://localhost:6379/9', nil, nil, em), em.connections
 
     em.connections.each { |c| c._expectations_met! }
   end

@@ -56,6 +56,7 @@ module EventMachine
   end
 end
 
+require 'digest/sha1'
 require 'hiredis/reader'
 require 'em-hiredis/event_emitter'
 require 'em-hiredis/inactivity_checker'
@@ -64,5 +65,4 @@ require 'em-hiredis/pubsub_connection'
 require 'em-hiredis/state_machine'
 require 'em-hiredis/connection_manager'
 require 'em-hiredis/new_client'
-require 'em-hiredis/client'
 require 'em-hiredis/new_pubsub_client'
