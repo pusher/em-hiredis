@@ -42,10 +42,10 @@ module EventMachine::Hiredis
       @sm = StateMachine.new
       TRANSITIONS.each { |t| @sm.transition(*t) }
 
-      @sm.on(:connecting, &method(:connect_internal))
-      @sm.on(:connected, &method(:connected))
-      @sm.on(:disconnected, &method(:disconnected))
-      @sm.on(:failed, &method(:perm_failure))
+      @sm.on(:connecting, &method(:on_connecting))
+      @sm.on(:connected, &method(:on_connected))
+      @sm.on(:disconnected, &method(:on_disconnected))
+      @sm.on(:failed, &method(:on_failed))
     end
 
     def connect
@@ -72,7 +72,7 @@ module EventMachine::Hiredis
 
     protected
 
-    def connect_internal(prev_state)
+    def on_connecting(prev_state)
       if @reconnect_timer
         @em.cancel_timer(@reconnect_timer)
         @reconnect_timer = nil
@@ -90,7 +90,7 @@ module EventMachine::Hiredis
       }
     end
 
-    def connected(prev_state)
+    def on_connected(prev_state)
       emit(:connected)
       if @reconnect_attempt > 0
         emit(:reconnected)
@@ -98,11 +98,11 @@ module EventMachine::Hiredis
       end
     end
 
-    def perm_failure(prev_state)
+    def on_failed(prev_state)
       emit(:failed)
     end
 
-    def disconnected(prev_state)
+    def on_disconnected(prev_state)
       delay = case prev_state
       when :connected
         emit(:disconnected)
