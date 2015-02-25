@@ -43,7 +43,10 @@ module EventMachine::Hiredis
     end
 
     def stop
-      @em.cancel_timer(@inactivity_timer) if @inactivity_timer
+      if @inactivity_timer
+        @em.cancel_timer(@inactivity_timer)
+        @inactivity_timer = nil
+      end
     end
   end
 end
