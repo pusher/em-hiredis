@@ -2,7 +2,7 @@
 
 ## 1.0.0 (2015-02-25)
 
-[BUXFIX] Replies becoming out of sync after voluntary reconnect.
+[BUGFIX] Replies becoming out of sync after voluntary reconnect.
 
 [CHANGE] Clients are now configured through the use of URIs only (not individual host, port, db params)
 
