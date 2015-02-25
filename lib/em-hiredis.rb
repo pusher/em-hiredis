@@ -35,7 +35,6 @@ module EventMachine
     def self.connect(uri = nil, activity_timeout = nil, response_timeout = nil)
       client = setup(uri, activity_timeout, response_timeout)
       client.connect
-      client
     end
 
     def self.logger=(logger)
