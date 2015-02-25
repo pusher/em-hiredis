@@ -7,17 +7,23 @@ module EventMachine::Hiredis
 
     PING_CHANNEL = '__em-hiredis-ping'
 
-    def initialize(inactivity_trigger_secs = nil, inactivity_response_timeout = 2)
+    def initialize(inactivity_trigger_secs = nil,
+                   inactivity_response_timeout = 2,
+                   name = 'unnamed connection')
+
+      @name = name
       @reader = ::Hiredis::Reader.new
 
       @connected = false
 
       @inactivity_checker = InactivityChecker.new(inactivity_trigger_secs, inactivity_response_timeout)
       @inactivity_checker.on(:activity_timeout) {
+        EM::Hiredis.logger.debug("#{@name} - Sending ping")
         send_command('subscribe', PING_CHANNEL)
         send_command('unsubscribe', PING_CHANNEL)
       }
       @inactivity_checker.on(:response_timeout) {
+        EM::Hiredis.logger.warn("#{@name} - Closing connection because of inactivity timeout")
         close_connection
       }
     end

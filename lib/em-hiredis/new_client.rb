@@ -40,15 +40,26 @@ module EventMachine::Hiredis
       @connection_manager = ConnectionManager.new(method(:factory_connection), em)
 
       @connection_manager.on(:connected) {
+        EM::Hiredis.logger.info("#{@name} - Connected")
         emit(:connected)
         set_deferred_status(:succeeded)
       }
 
-      @connection_manager.on(:disconnected) { emit(:disconnected) }
-      @connection_manager.on(:reconnected) { emit(:reconnected) }
-      @connection_manager.on(:reconnect_failed) { |count| emit(:reconnect_failed, count) }
+      @connection_manager.on(:disconnected) {
+        EM::Hiredis.logger.info("#{@name} - Disconnected")
+        emit(:disconnected)
+      }
+      @connection_manager.on(:reconnected) {
+        EM::Hiredis.logger.info("#{@name} - Reconnected")
+        emit(:reconnected)
+      }
+      @connection_manager.on(:reconnect_failed) { |count|
+        EM::Hiredis.logger.warn("#{@name} - Reconnect failed, attempt #{count}")
+        emit(:reconnect_failed, count)
+      }
 
       @connection_manager.on(:failed) {
+        EM::Hiredis.logger.error("#{@name} - Connection failed")
         @command_queue.each { |df, _, _|
           df.fail(EM::Hiredis::Error.new('Redis connection in failed state'))
         }
@@ -107,6 +118,13 @@ module EventMachine::Hiredis
       @port = uri.port
       @password = uri.password
       @db = db
+
+      if @name
+        EM::Hiredis.logger.info("#{@name} - Reconfiguring to #{uri_string}")
+      else
+        EM::Hiredis.logger.info("#{uri_string} - Configured")
+      end
+      @name = uri_string
     end
 
     def factory_connection
@@ -118,7 +136,8 @@ module EventMachine::Hiredis
           @port,
           ReqRespConnection,
           @inactivity_trigger_secs,
-          @inactivity_response_timeout
+          @inactivity_response_timeout,
+          @name
         )
 
         connection.on(:connected) {

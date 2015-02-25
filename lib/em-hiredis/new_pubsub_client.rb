@@ -56,15 +56,26 @@ module EventMachine::Hiredis
       @connection_manager = ConnectionManager.new(method(:factory_connection), em)
 
       @connection_manager.on(:connected) {
+        EM::Hiredis.logger.info("#{@name} - Connected")
         emit(:connected)
         set_deferred_status(:succeeded)
       }
 
-      @connection_manager.on(:disconnected) { emit(:disconnected) }
-      @connection_manager.on(:reconnected) { emit(:reconnected) }
-      @connection_manager.on(:reconnect_failed) { |count| emit(:reconnect_failed, count) }
+      @connection_manager.on(:disconnected) {
+        EM::Hiredis.logger.info("#{@name} - Disconnected")
+        emit(:disconnected)
+      }
+      @connection_manager.on(:reconnected) {
+        EM::Hiredis.logger.info("#{@name} - Reconnected")
+        emit(:reconnected)
+      }
+      @connection_manager.on(:reconnect_failed) { |count|
+        EM::Hiredis.logger.warn("#{@name} - Reconnect failed, attempt #{count}")
+        emit(:reconnect_failed, count)
+      }
 
       @connection_manager.on(:failed) {
+        EM::Hiredis.logger.error("#{@name} - Connection failed")
         emit(:failed)
         set_deferred_status(:failed, Error.new('Could not connect after 4 attempts'))
       }
@@ -126,6 +137,13 @@ module EventMachine::Hiredis
       @host = uri.host
       @port = uri.port
       @password = uri.password
+
+      if @name
+        EM::Hiredis.logger.info("#{@name} - Reconfiguring to #{uri_string}")
+      else
+        EM::Hiredis.logger.info("#{uri_string} (pubsub) - Configured")
+      end
+      @name = "#{uri_string} (pubsub)"
     end
 
     def factory_connection
@@ -137,7 +155,8 @@ module EventMachine::Hiredis
           @port,
           PubsubConnection,
           @inactivity_trigger_secs,
-          @inactivity_response_timeout
+          @inactivity_response_timeout,
+          @name
         )
 
         connection.on(:connected) {
@@ -184,7 +203,7 @@ module EventMachine::Hiredis
         # Short circuit issuing the command if we're already subscribed
         subscriptions[channel] << cb
       elsif @connection_manager.state == :failed
-        # TODO this is not an OK way of signally failure
+        # TODO this is not an OK way of signalling failure
         raise('Redis connection in failed state')
       elsif @connection_manager.state == :connected
         @connection_manager.connection.send_command(type, channel)

@@ -2,7 +2,11 @@ module EventMachine::Hiredis
   module ReqRespConnection
     include EventMachine::Hiredis::EventEmitter
 
-    def initialize(inactivity_trigger_secs = nil, inactivity_response_timeout = 2)
+    def initialize(inactivity_trigger_secs = nil,
+                   inactivity_response_timeout = 2,
+                   name = 'unnamed connection')
+
+      @name = name
       # Parser for incoming replies
       @reader = ::Hiredis::Reader.new
       # Queue of deferrables awaiting replies
@@ -12,9 +16,11 @@ module EventMachine::Hiredis
 
       @inactivity_checker = InactivityChecker.new(inactivity_trigger_secs, inactivity_response_timeout)
       @inactivity_checker.on(:activity_timeout) {
+        EM::Hiredis.logger.debug("#{@name} - Sending ping")
         send_command(EM::DefaultDeferrable.new, 'ping', [])
       }
       @inactivity_checker.on(:response_timeout) {
+        EM::Hiredis.logger.warn("#{@name} - Closing connection because of inactivity timeout")
         close_connection
       }
     end

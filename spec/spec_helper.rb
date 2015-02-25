@@ -16,3 +16,6 @@ end
 
 # This speeds the tests up a bit
 EM::Hiredis.reconnect_timeout = 0.01
+
+# Keep the tests quiet, decrease the level to investigate failures
+EM::Hiredis.logger.level = Logger::FATAL
