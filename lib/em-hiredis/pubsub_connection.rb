@@ -93,7 +93,7 @@ module EventMachine::Hiredis
     def handle_response(reply)
       if @auth_df
         # If we're awaiting a response to auth, we will not have sent any other commands
-        if RuntimeError === reply
+        if reply.kind_of?(RuntimeError)
           e = EM::Hiredis::RedisError.new(reply.message)
           e.redis_error = reply
           @auth_df.fail(e)

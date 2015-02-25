@@ -83,7 +83,7 @@ module EventMachine::Hiredis
     def handle_response(reply)
       df = @response_queue.shift
       if df
-        if RuntimeError === reply
+        if reply.kind_of?(RuntimeError)
           e = EM::Hiredis::RedisError.new(reply.message)
           e.redis_error = reply
           df.fail(e)
