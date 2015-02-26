@@ -226,6 +226,57 @@ describe EM::Hiredis::PubsubClient do
       end
     end
 
+    it 'should issue pubsub commands as usual after authentication' do
+      mock_connections(1, 'redis://:mypass@localhost:6379') do |client, (connection)|
+        connection._expect('auth mypass')
+
+        connected = false
+        client.connect.callback {
+          connected = true
+        }
+        connection.connection_completed
+        connected.should == true
+
+        connection._expect_pubsub('subscribe channel')
+
+        message_received = nil
+        # Block subscription
+        client.subscribe('channel') { |m|
+           message_received = m
+        }
+
+        connection.emit(:message, 'channel', 'hello')
+
+        message_received.should == 'hello'
+      end
+    end
+
+    it 'should issue pubsub commands issued before connection completion after authentication' do
+      mock_connections(1, 'redis://:mypass@localhost:6379') do |client, (connection)|
+        connection._expect('auth mypass')
+
+        connected = false
+        client.connect.callback {
+          connected = true
+        }
+
+        connection._expect_pubsub('subscribe channel')
+
+        message_received = nil
+        # Block subscription
+        client.subscribe('channel') { |m|
+           message_received = m
+        }
+
+        connection.connection_completed
+        connected.should == true
+
+        connection.emit(:message, 'channel', 'hello')
+
+        message_received.should == 'hello'
+      end
+    end
+
     it 'should reconnect if auth command fails' do
       mock_connections(2, 'redis://:mypass@localhost:6379') do |client, (conn_a, conn_b)|
         conn_a._expect('auth mypass', RuntimeError.new('OOPS'))
