@@ -71,6 +71,10 @@ module EventMachine::Hiredis
       end
     end
 
+    def remaining_timers
+      @timers.length
+    end
+
     private
 
     def sort!
