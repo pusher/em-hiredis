@@ -115,6 +115,11 @@ module EventMachine::Hiredis
 
       emit(:reconnect_failed, @reconnect_attempt) if @reconnect_attempt > 0
 
+      # External agents have the opportunity to call reconnect and change the
+      # state when we emit :disconnected and :reconnected, so we should only
+      # proceed here if our state has not been touched.
+      return unless @sm.state == :disconnected
+
       if @reconnect_attempt > 3
         @sm.update_state(:failed)
       else
@@ -129,7 +134,6 @@ module EventMachine::Hiredis
           raise "Unrecognised delay specifier #{delay}"
         end
       end
-
     end
   end
 end
