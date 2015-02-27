@@ -53,10 +53,17 @@ module EventMachine::Hiredis
     end
 
     def reconnect
-      if @connection
-        @connection.close_connection
-      else
+      case @sm.state
+      when :initial
         connect
+      when :connecting
+        @cancel_connect.call
+      when :connected
+        @connection.close_connection
+      when :disconnected
+        @sm.update_state(:connecting)
+      when :failed
+        @sm.update_state(:connecting)
       end
     end
 
@@ -78,15 +85,34 @@ module EventMachine::Hiredis
         @reconnect_timer = nil
       end
 
-      @connection_factory.call.callback { |connection|
+      connection_success = lambda { |connection|
         @connection = connection
         @sm.update_state(:connected)
 
         connection.on(:disconnected) {
           @sm.update_state(:disconnected) if @connection == connection
         }
-      }.errback {
+      }
+
+      connection_failure = lambda { |e|
         @sm.update_state(:disconnected)
+      }
+
+      connection_df = @connection_factory.call
+        .callback(&connection_success)
+        .errback(&connection_failure)
+
+      @cancel_connect = lambda {
+        connection_df.cancel_callback(connection_success)
+        connection_df.callback { |connection|
+          connection.close_connection
+          on_connecting(:connecting)
+        }
+
+        connection_df.cancel_errback(connection_failure)
+        connection_df.errback {
+          on_connecting(:connecting)
+        }
       }
     end
 

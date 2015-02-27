@@ -148,7 +148,7 @@ describe EM::Hiredis::ConnectionManager do
       em.remaining_timers.should == 0
     end
 
-    it 'should be successful when connecting (initial connection)' do
+    it 'should cancel the connection in progress when already connecting' do
       em = EM::Hiredis::TimeMockEventMachine.new
 
       conn_factory = mock('connection factory')
@@ -166,10 +166,27 @@ describe EM::Hiredis::ConnectionManager do
       manager.state.should == :connecting
 
       manager.reconnect
-      # What happens here?
+
+      manager.state.should == :connecting
+
+      in_progress_connection = mock('in progress connection')
+      # the connection in progress when we called reconnect should be
+      # immediately closed, because we might have reconfigured to connect to
+      # something different
+      in_progress_connection.should_receive(:close_connection)
+      initial_conn_df.succeed(in_progress_connection)
+
+      # now we're trying to connect the replacement connection
+      manager.state.should == :connecting
+
+      new_connection = mock('replacement connection')
+      new_connection.expect_event_registration(:disconnected)
+      second_conn_df.succeed(new_connection)
+
+      manager.state.should == :connected
     end
 
-    it 'should be successful when connecting (reconnect)' do
+    it 'should reconnect again when already connecting and in-progress connection fails' do
       em = EM::Hiredis::TimeMockEventMachine.new
 
       conn_factory = mock('connection factory')
@@ -183,16 +200,65 @@ describe EM::Hiredis::ConnectionManager do
       )
 
       manager.connect
+
+      manager.state.should == :connecting
+
+      manager.reconnect
 
       # Fail the initial connection
       initial_conn_df.fail('Testing')
-      # Which adds a reconnect timer, process it
-      em.evaluate_ticks
+
+      # now we're trying to connect the replacement connection
+      manager.state.should == :connecting
+
+      new_connection = mock('replacement connection')
+      new_connection.expect_event_registration(:disconnected)
+      second_conn_df.succeed(new_connection)
+
+      manager.state.should == :connected
+    end
+
+    it 'should be successful when reconnecting' do
+      em = EM::Hiredis::TimeMockEventMachine.new
+
+      conn_factory = mock('connection factory')
+      manager = EM::Hiredis::ConnectionManager.new(conn_factory, em)
+
+      initial_conn_df = EM::DefaultDeferrable.new
+      auto_reconnect_df = EM::DefaultDeferrable.new
+      manual_reconnect_df = EM::DefaultDeferrable.new
+      conn_factory.should_receive(:call).and_return(
+        initial_conn_df,
+        auto_reconnect_df,
+        manual_reconnect_df
+      )
+
+      manager.connect
+
+      initial_connection = mock('initial connection')
+      disconnect_callback = initial_connection.expect_event_registration(:disconnected)
+      initial_conn_df.succeed(initial_connection)
+
+      manager.state.should == :connected
+
+      # Connection lost, automatic reconnection
+      disconnect_callback.call
+
+      # Manual reconnection before automatic one is complete
+      manager.reconnect
 
       manager.state.should == :connecting
 
-      manager.reconnect
-      # What happens here?
+      auto_reconnect_df.fail('Testing')
+
+      # now we're trying to connect the replacement connection
+      manager.state.should == :connecting
+
+      new_connection = mock('replacement connection')
+      new_connection.expect_event_registration(:disconnected)
+      manual_reconnect_df.succeed(new_connection)
+
+      manager.state.should == :connected
     end
 
     it 'should be successful when connected' do
