@@ -203,7 +203,6 @@ module EventMachine::Hiredis
         # Short circuit issuing the command if we're already subscribed
         subscriptions[channel] << cb
       elsif @connection_manager.state == :failed
-        # TODO this is not an OK way of signalling failure
         raise('Redis connection in failed state')
       elsif @connection_manager.state == :connected
         @connection_manager.connection.send_command(type, channel)

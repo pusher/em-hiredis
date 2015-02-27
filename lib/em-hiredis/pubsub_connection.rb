@@ -106,7 +106,7 @@ module EventMachine::Hiredis
         if PUBSUB_MESSAGES.include?(type)
           emit(type.to_sym, *reply[1..-1])
         else
-          raise "Unrecognised response #{reply}"
+          EM::Hireds.logger.error("#{@name} - unrecognised response: #{reply.inspect}")
         end
       end
     end
