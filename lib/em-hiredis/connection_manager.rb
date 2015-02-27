@@ -103,6 +103,8 @@ module EventMachine::Hiredis
     end
 
     def on_disconnected(prev_state)
+      @connection = nil
+
       delay = case prev_state
       when :connected
         emit(:disconnected)
