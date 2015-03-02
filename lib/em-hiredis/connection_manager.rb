@@ -1,5 +1,52 @@
 require 'uri'
 
+class CancellableDefferable
+  def initialize(df)
+    @df = df
+    @keep = true
+  end
+
+  def cancel
+    @keep = false
+  end
+
+  def callback(&blk)
+    @df.callback { |*args|
+      if @keep
+        blk.call(*args)
+      end
+    }
+    self
+  end
+
+  def callback_cancelled(&blk)
+    @df.callback { |*args|
+      unless @keep
+        blk.call(*args)
+      end
+    }
+    self
+  end
+
+  def errback(&blk)
+    @df.errback { |*args|
+      if @keep
+        blk.call(*args)
+      end
+    }
+    self
+  end
+
+  def errback_cancelled(&blk)
+    @df.errback { |*args|
+      unless @keep
+        blk.call(*args)
+      end
+    }
+    self
+  end
+end
+
 module EventMachine::Hiredis
   # Manages EventMachine connections in order to provide reconnections.
   #
@@ -57,7 +104,8 @@ module EventMachine::Hiredis
       when :initial
         connect
       when :connecting
-        @cancel_connect.call
+        @connect_operation.cancel
+        on_connecting(:connecting)
       when :connected
         @connection.close_connection
       when :disconnected
@@ -85,29 +133,19 @@ module EventMachine::Hiredis
         @reconnect_timer = nil
       end
 
-      keep_connection = true
-
-      @connection_factory.call.callback { |connection|
-        if keep_connection
+      @connect_operation =
+        CancellableDeferrable.new(@connection_factory.call).callback { |connection|
           @connection = connection
           @sm.update_state(:connected)
 
           connection.on(:disconnected) {
             @sm.update_state(:disconnected) if @connection == connection
           }
-        else
+        }.callback_cancelled { |connection|
           connection.close_connection
-        end
-      }.errback { |e|
-        if keep_connection
+        }.errback { |e|
           @sm.update_state(:disconnected)
-        end
-      }
-
-      @cancel_connect = lambda {
-        keep_connection = false
-        on_connecting(:connecting)
-      }
+        }
     end
 
     def on_connected(prev_state)
