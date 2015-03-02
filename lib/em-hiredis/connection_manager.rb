@@ -1,6 +1,6 @@
 require 'uri'
 
-class CancellableDefferable
+class CancellableDeferrable
   def initialize(df)
     @df = df
     @keep = true
