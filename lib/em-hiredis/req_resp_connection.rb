@@ -31,6 +31,10 @@ module EventMachine::Hiredis
       return df
     end
 
+    def pending_responses
+      @response_queue.length
+    end
+
     # EM::Connection callback
     def connection_completed
       @connected = true

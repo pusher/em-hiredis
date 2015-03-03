@@ -125,6 +125,14 @@ module EventMachine::Hiredis
       @connection
     end
 
+    def pending_commands
+      if @sm.state == :connected
+        @connection.pending_responses
+      else
+        0
+      end
+    end
+
     protected
 
     def on_connecting(prev_state)

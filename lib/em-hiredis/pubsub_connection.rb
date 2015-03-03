@@ -36,6 +36,13 @@ module EventMachine::Hiredis
       end
     end
 
+    def pending_responses
+      # Connection is read only, we only issue subscribes and unsubscribes
+      # and we don't count their issue vs completion, so there can be no
+      # meaningful responses pending.
+      0
+    end
+
     # We special case AUTH, as it is the only req-resp model command which we
     # allow, and it must be issued on an otherwise unused connection
     def auth(password)

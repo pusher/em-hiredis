@@ -92,6 +92,16 @@ module EventMachine::Hiredis
       @connection_manager.reconnect
     end
 
+    ## Exposed state
+
+    def pending_commands
+      @connection_manager.pending_commands
+    end
+
+    def pending_commands?
+      return pending_commands > 0
+    end
+
     ## Commands which require extra logic or convenience
 
     def select(db, &blk)
