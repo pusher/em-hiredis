@@ -124,13 +124,14 @@ module EventMachine::Hiredis
     def on_disconnected(prev_state)
       @connection = nil
 
-      delay = case prev_state
-      when :connected
-        emit(:disconnected)
-        :immediate
-      when :connecting
-        :delayed
-      end
+      delay_reconnect =
+        case prev_state
+        when :connected
+          emit(:disconnected)
+          false
+        when :connecting
+          true
+        end
 
       emit(:reconnect_failed, @reconnect_attempt) if @reconnect_attempt > 0
 
@@ -143,14 +144,12 @@ module EventMachine::Hiredis
         @sm.update_state(:failed)
       else
         @reconnect_attempt += 1
-        if delay == :delayed
+        if delay_reconnect
           @reconnect_timer = @em.add_timer(EventMachine::Hiredis.reconnect_timeout) {
             @sm.update_state(:connecting)
           }
-        elsif delay == :immediate
-          @sm.update_state(:connecting)
         else
-          raise "Unrecognised delay specifier #{delay}"
+          @sm.update_state(:connecting)
         end
       end
     end
