@@ -74,9 +74,9 @@ module EventMachine::Hiredis
       @sm.state
     end
 
-    # Access to the underlying connection. Care must be taken to ensure that the
-    # `state` is :connected before this is used.
+    # Access to the underlying connection.
     def connection
+      raise "Not connected, currently #{@sm.state}" unless @sm.state == :connected
       @connection
     end
 
