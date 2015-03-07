@@ -17,6 +17,8 @@ module EventMachine::Hiredis
       [ :initial, :connecting ],
       # TCP connect, or initialisation commands fail
       [ :connecting, :disconnected ],
+      # manual reconnect while connecting
+      [ :connecting, :connecting ],
       # Connection ready for use by clients
       [ :connecting, :connected ],
       # connection lost
@@ -58,7 +60,7 @@ module EventMachine::Hiredis
         connect
       when :connecting
         @connect_operation.cancel
-        on_connecting(:connecting)
+        @sm.update_state(:connecting)
       when :connected
         @connection.close_connection
       when :disconnected
