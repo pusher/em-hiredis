@@ -58,6 +58,7 @@ end
 require 'digest/sha1'
 require 'hiredis/reader'
 require 'em-hiredis/event_emitter'
+require 'em-hiredis/cancellable_deferrable'
 require 'em-hiredis/inactivity_checker'
 require 'em-hiredis/req_resp_connection'
 require 'em-hiredis/pubsub_connection'

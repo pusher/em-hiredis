@@ -1,52 +1,5 @@
 require 'uri'
 
-class CancellableDeferrable
-  def initialize(df)
-    @df = df
-    @keep = true
-  end
-
-  def cancel
-    @keep = false
-  end
-
-  def callback(&blk)
-    @df.callback { |*args|
-      if @keep
-        blk.call(*args)
-      end
-    }
-    self
-  end
-
-  def callback_cancelled(&blk)
-    @df.callback { |*args|
-      unless @keep
-        blk.call(*args)
-      end
-    }
-    self
-  end
-
-  def errback(&blk)
-    @df.errback { |*args|
-      if @keep
-        blk.call(*args)
-      end
-    }
-    self
-  end
-
-  def errback_cancelled(&blk)
-    @df.errback { |*args|
-      unless @keep
-        blk.call(*args)
-      end
-    }
-    self
-  end
-end
-
 module EventMachine::Hiredis
   # Manages EventMachine connections in order to provide reconnections.
   #
