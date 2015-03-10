@@ -103,6 +103,11 @@ module EventMachine::Hiredis
       @connection_manager.reconnect
     end
 
+    # Terminate the client permanently
+    def close
+      @connection_manager.close
+    end
+
     ## Exposed state
 
     def pending_commands

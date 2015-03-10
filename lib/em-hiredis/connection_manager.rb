@@ -29,6 +29,13 @@ module EventMachine::Hiredis
       [ :disconnected, :failed ],
       # manual call of reconnect after failure
       [ :failed, :connecting ],
+
+      # Calling close
+      [ :initial, :stopped ],
+      [ :connecting, :stopped ],
+      [ :connected, :stopped ],
+      [ :disconnected, :stopped ],
+      [ :failed, :stopped ],
     ]
 
     # connection_factory: an object which responds to `call` by returning a
@@ -67,6 +74,23 @@ module EventMachine::Hiredis
         @sm.update_state(:connecting)
       when :failed
         @sm.update_state(:connecting)
+      end
+    end
+
+    def close
+      case @sm.state
+      when :initial
+        @sm.update_state(:stopped)
+      when :connecting
+        @connect_operation.cancel
+        @sm.update_state(:stopped)
+      when :connected
+        @connection.close_connection
+        @sm.update_state(:stopped)
+      when :disconnected
+        @sm.update_state(:stopped)
+      when :failed
+        @sm.update_state(:stopped)
       end
     end
 
@@ -126,10 +150,13 @@ module EventMachine::Hiredis
     def on_disconnected(prev_state)
       @connection = nil
 
+      # If this was the final disconnection, do nothing more
+      return if @sm.state == :stopped
+
       emit(:disconnected) if prev_state == :connected
       emit(:reconnect_failed, @reconnect_attempt) if @reconnect_attempt > 0
 
-      delay_reconnect = prev_state == :connected
+      delay_reconnect = prev_state != :connected
 
       # External agents have the opportunity to call reconnect and change the
       # state when we emit :disconnected and :reconnected, so we should only
