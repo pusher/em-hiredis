@@ -22,7 +22,7 @@ module EventMachine::Hiredis
     def update_state(to)
       raise "Invalid state #{to}" unless @all_states.include?(to)
 
-      allowed = @transitions[@state].include?(to)
+      allowed = @transitions[@state] && @transitions[@state].include?(to)
       raise "No such transition #{@state} #{to}" unless allowed
 
       old_state = @state
