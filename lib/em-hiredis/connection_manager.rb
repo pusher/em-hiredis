@@ -85,6 +85,7 @@ module EventMachine::Hiredis
         @connect_operation.cancel
         @sm.update_state(:stopped)
       when :connected
+        @connection.remove_all_listeners(:disconnected)
         @connection.close_connection
         @sm.update_state(:stopped)
       when :disconnected
@@ -149,9 +150,6 @@ module EventMachine::Hiredis
 
     def on_disconnected(prev_state)
       @connection = nil
-
-      # If this was the final disconnection, do nothing more
-      return if @sm.state == :stopped
 
       emit(:disconnected) if prev_state == :connected
       emit(:reconnect_failed, @reconnect_attempt) if @reconnect_attempt > 0
