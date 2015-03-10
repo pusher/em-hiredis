@@ -126,16 +126,10 @@ module EventMachine::Hiredis
     def on_disconnected(prev_state)
       @connection = nil
 
-      delay_reconnect =
-        case prev_state
-        when :connected
-          emit(:disconnected)
-          false
-        when :connecting
-          true
-        end
-
+      emit(:disconnected) if prev_state == :connected
       emit(:reconnect_failed, @reconnect_attempt) if @reconnect_attempt > 0
+
+      delay_reconnect = prev_state == :connected
 
       # External agents have the opportunity to call reconnect and change the
       # state when we emit :disconnected and :reconnected, so we should only
