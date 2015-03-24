@@ -195,10 +195,10 @@ module EventMachine::Hiredis
             end
 
             @subscriptions.keys.each_slice(5000) { |slice|
-              connection.send_command(:subscribe, *slice)
+              connection.send_command(:subscribe, slice)
             }
             @psubscriptions.keys.each_slice(5000) { |slice|
-              connection.send_command(:psubscribe, *slice)
+              connection.send_command(:psubscribe, slice)
             }
 
             df.succeed(connection)
@@ -226,7 +226,7 @@ module EventMachine::Hiredis
       elsif @connection_manager.state == :failed
         raise('Redis connection in failed state')
       elsif @connection_manager.state == :connected
-        @connection_manager.connection.send_command(type, channel)
+        @connection_manager.connection.send_command(type, [channel])
         subscriptions[channel] << cb
       else
         # We will issue subscription command when we connect
@@ -240,7 +240,7 @@ module EventMachine::Hiredis
       if subscriptions.include?(channel)
         subscriptions.delete(channel)
         if @connection_manager.state == :connected
-          @connection_manager.connection.send_command(type, channel)
+          @connection_manager.connection.send_command(type, [channel])
         end
       end
 
