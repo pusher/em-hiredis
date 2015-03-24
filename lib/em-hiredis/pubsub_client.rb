@@ -121,12 +121,12 @@ module EventMachine::Hiredis
     ## Commands
 
     def subscribe(channel, proc = nil, &blk)
-      cb = proc || blk
+      cb = proc || blk || (raise ArgumentError, "missing proc or &blk")
       subscribe_impl(:subscribe, @subscriptions, channel, cb)
     end
 
     def psubscribe(pattern, proc = nil, &blk)
-      cb = proc || blk
+      cb = proc || blk || (raise ArgumentError, "missing proc or &blk")
       subscribe_impl(:psubscribe, @psubscriptions, pattern, cb)
     end
 
@@ -259,11 +259,11 @@ module EventMachine::Hiredis
     end
 
     def message_callbacks(channel, message)
-      @subscriptions[channel].each { |cb| cb.call(message) if cb }
+      @subscriptions[channel].each { |cb| cb.call(message) }
     end
 
     def pmessage_callbacks(pattern, channel, message)
-      @psubscriptions[pattern].each { |cb| cb.call(channel, message) if cb }
+      @psubscriptions[pattern].each { |cb| cb.call(channel, message) }
     end
 
     def maybe_auth(connection)

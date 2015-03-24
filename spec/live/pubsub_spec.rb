@@ -56,7 +56,7 @@ describe EventMachine::Hiredis::PubsubClient, '(un)subscribe' do
       }
 
       # 1. Subscribe to channel
-      redis.pubsub.subscribe(channel)
+      redis.pubsub.subscribe(channel) { }
     end
   end
 
@@ -175,7 +175,7 @@ describe EventMachine::Hiredis::PubsubClient, 'p(un)subscribe' do
       }
 
       # 1. Subscribe to channel
-      redis.pubsub.psubscribe('channel:*')
+      redis.pubsub.psubscribe('channel:*') { }
     end
   end
 
