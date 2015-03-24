@@ -50,8 +50,8 @@ module EventMachine::Hiredis
       # nil is a valid "callback", required because even if the user is using
       # emitted events rather than callbacks to consume their messages, we still
       # need to mark the fact that we are subscribed.
-      @subscriptions = Hash.new { |h, k| h[k] = [] }
-      @psubscriptions = Hash.new { |h, k| h[k] = [] }
+      @subscriptions = Hash.new { [] }
+      @psubscriptions = Hash.new { [] }
 
       @connection_manager = ConnectionManager.new(method(:factory_connection), em)
 
@@ -121,12 +121,12 @@ module EventMachine::Hiredis
     ## Commands
 
     def subscribe(channel, proc = nil, &blk)
-      cb = proc || blk
+      cb = proc || blk || (raise ArgumentError, "missing proc or &blk")
       subscribe_impl(:subscribe, @subscriptions, channel, cb)
     end
 
     def psubscribe(pattern, proc = nil, &blk)
-      cb = proc || blk
+      cb = proc || blk || (raise ArgumentError, "missing proc or &blk")
       subscribe_impl(:psubscribe, @psubscriptions, pattern, cb)
     end
 
@@ -195,10 +195,10 @@ module EventMachine::Hiredis
             end
 
             @subscriptions.keys.each_slice(5000) { |slice|
-              connection.send_command(:subscribe, *slice)
+              connection.send_command(:subscribe, slice)
             }
             @psubscriptions.keys.each_slice(5000) { |slice|
-              connection.send_command(:psubscribe, *slice)
+              connection.send_command(:psubscribe, slice)
             }
 
             df.succeed(connection)
@@ -222,15 +222,15 @@ module EventMachine::Hiredis
     def subscribe_impl(type, subscriptions, channel, cb)
       if subscriptions.include?(channel)
         # Short circuit issuing the command if we're already subscribed
-        subscriptions[channel] << cb
+        subscriptions[channel] += [cb]
       elsif @connection_manager.state == :failed
         raise('Redis connection in failed state')
       elsif @connection_manager.state == :connected
-        @connection_manager.connection.send_command(type, channel)
-        subscriptions[channel] << cb
+        @connection_manager.connection.send_command(type, [channel])
+        subscriptions[channel] += [cb]
       else
         # We will issue subscription command when we connect
-        subscriptions[channel] << cb
+        subscriptions[channel] += [cb]
       end
 
       return nil
@@ -240,7 +240,7 @@ module EventMachine::Hiredis
       if subscriptions.include?(channel)
         subscriptions.delete(channel)
         if @connection_manager.state == :connected
-          @connection_manager.connection.send_command(type, channel)
+          @connection_manager.connection.send_command(type, [channel])
         end
       end
 
@@ -259,11 +259,11 @@ module EventMachine::Hiredis
     end
 
     def message_callbacks(channel, message)
-      @subscriptions[channel].each { |cb| cb.call(message) if cb }
+      @subscriptions[channel].each { |cb| cb.call(message) }
     end
 
     def pmessage_callbacks(pattern, channel, message)
-      @psubscriptions[pattern].each { |cb| cb.call(channel, message) if cb }
+      @psubscriptions[pattern].each { |cb| cb.call(channel, message) }
     end
 
     def maybe_auth(connection)

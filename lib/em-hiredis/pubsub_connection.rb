@@ -28,7 +28,7 @@ module EventMachine::Hiredis
       }
     end
 
-    def send_command(command, *channels)
+    def send_command(command, channels)
       if PUBSUB_COMMANDS.include?(command.to_s)
         send_data(marshal(command, *channels))
       else
