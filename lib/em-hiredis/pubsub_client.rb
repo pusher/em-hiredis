@@ -51,6 +51,11 @@ module EventMachine::Hiredis
       # emitted events rather than callbacks to consume their messages, we still
       # need to mark the fact that we are subscribed.
       @subscriptions = Hash.new { |h, k| h[k] = [] }
+      EM::Hiredis.logger.fatal("Interesting hash is #{@subscriptions.__id__}")
+      @subscriptions[:a] = :b
+      @subscriptions.each { |k, v| puts k }
+      EM::Hiredis.logger.fatal("Just iterated over it")
+      @subscriptions.delete(:a)
       @psubscriptions = Hash.new { |h, k| h[k] = [] }
 
       @connection_manager = ConnectionManager.new(method(:factory_connection), em)
