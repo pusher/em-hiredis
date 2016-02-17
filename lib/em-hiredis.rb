@@ -13,8 +13,10 @@ module EventMachine
 
     class << self
       attr_accessor :reconnect_timeout
+      attr_accessor :reconnect_max_attempts
     end
     self.reconnect_timeout = 0.5
+    self.reconnect_max_attempts = 3
 
     def self.setup(uri = nil, activity_timeout = nil, response_timeout = nil)
       uri = uri || ENV["REDIS_URL"] || "redis://127.0.0.1:6379/0"

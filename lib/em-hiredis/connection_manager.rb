@@ -155,7 +155,7 @@ module EventMachine::Hiredis
       # proceed here if our state has not been touched.
       return unless @sm.state == :disconnected
 
-      if @reconnect_attempt > 3
+      if @reconnect_attempt > EventMachine::Hiredis.reconnect_max_attempts
         @sm.update_state(:failed)
       else
         @reconnect_attempt += 1
