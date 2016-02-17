@@ -182,7 +182,7 @@ module EventMachine::Hiredis
       @pubsub ||= begin
         uri = URI("redis://#{@host}:#{@port}/")
         uri.password = @password if @password
-        PubsubClient.new(uri).connect
+        PubsubClient.new(uri, @inactivity_trigger_secs, @inactivity_response_timeout).connect
       end
     end
 
