@@ -154,10 +154,6 @@ module EventMachine::Hiredis
       # state when we emit :disconnected and :reconnected, so we should only
       # proceed here if our state has not been touched.
       return unless @sm.state == :disconnected
-
-      # if @reconnect_attempt > 3
-        # @sm.update_state(:failed)
-      # else
         @reconnect_attempt += 1
         if delay_reconnect
           @reconnect_timer = @em.add_timer(EventMachine::Hiredis.reconnect_timeout) {
@@ -166,7 +162,6 @@ module EventMachine::Hiredis
         else
           @sm.update_state(:connecting)
         end
-      # end
     end
   end
 end
