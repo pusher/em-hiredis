@@ -40,7 +40,8 @@ module EventMachine::Hiredis
         uri,
         inactivity_trigger_secs = nil,
         inactivity_response_timeout = nil,
-        em = EventMachine)
+        em = EventMachine,
+        options = {})
 
       @em = em
       configure(uri)
@@ -55,7 +56,7 @@ module EventMachine::Hiredis
       @subscriptions = {}
       @psubscriptions = {}
 
-      @connection_manager = ConnectionManager.new(method(:factory_connection), em)
+      @connection_manager = ConnectionManager.new(method(:factory_connection), em, options)
 
       @connection_manager.on(:connected) {
         EM::Hiredis.logger.info("#{@name} - Connected")

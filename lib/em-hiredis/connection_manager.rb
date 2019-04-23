@@ -12,6 +12,10 @@ module EventMachine::Hiredis
   class ConnectionManager
     include EventEmitter
 
+    DEFAULTS = {
+      :reconnect_attempts => 3
+    }
+
     TRANSITIONS = [
       # first connect call
       [ :initial, :connecting ],
@@ -42,7 +46,9 @@ module EventMachine::Hiredis
     #   deferrable which succeeds with a connected and initialised instance
     #   of EMConnection or fails if the connection was unsuccessful.
     #   Failures will be retried
-    def initialize(connection_factory, em = EM)
+    def initialize(connection_factory, em = EM, options)
+
+      @options = _parse_options(options)
       @em = em
       @connection_factory = connection_factory
 
@@ -55,6 +61,11 @@ module EventMachine::Hiredis
       @sm.on(:connected, &method(:on_connected))
       @sm.on(:disconnected, &method(:on_disconnected))
       @sm.on(:failed, &method(:on_failed))
+    end
+
+    def _parse_options(options)
+      options[:reconnect_attempts] ||= DEFAULTS[:reconnect_attempts]
+      return options
     end
 
     def connect
@@ -154,6 +165,9 @@ module EventMachine::Hiredis
       # state when we emit :disconnected and :reconnected, so we should only
       # proceed here if our state has not been touched.
       return unless @sm.state == :disconnected
+      if @reconnect_attempt > @options[:reconnect_attempts]
+        @sm.update_state(:failed)
+      else
         @reconnect_attempt += 1
         if delay_reconnect
           @reconnect_timer = @em.add_timer(EventMachine::Hiredis.reconnect_timeout) {
@@ -162,6 +176,7 @@ module EventMachine::Hiredis
         else
           @sm.update_state(:connecting)
         end
+      end
     end
   end
 end
