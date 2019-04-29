@@ -36,12 +36,15 @@ module EventMachine::Hiredis
     # inactivity_response_timeout:
     #   the number of seconds after a ping at which to terminate the connection
     #   if there is still no activity
+    # reconnect_attempts:
+    #   the number of how many reconnect attempts it should complete
+    #   before declaring a connection as failed.
     def initialize(
         uri,
         inactivity_trigger_secs = nil,
         inactivity_response_timeout = nil,
         em = EventMachine,
-        options = {})
+        reconnect_attempts = nil)
 
       @em = em
       configure(uri)
@@ -56,7 +59,7 @@ module EventMachine::Hiredis
       @subscriptions = {}
       @psubscriptions = {}
 
-      @connection_manager = ConnectionManager.new(method(:factory_connection), em, options)
+      @connection_manager = ConnectionManager.new(method(:factory_connection), em, reconnect_attempts)
 
       @connection_manager.on(:connected) {
         EM::Hiredis.logger.info("#{@name} - Connected")
