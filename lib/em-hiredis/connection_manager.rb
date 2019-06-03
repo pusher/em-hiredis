@@ -51,6 +51,7 @@ module EventMachine::Hiredis
       @connection_factory = connection_factory
 
       @reconnect_attempt = 0
+      @connected_at = nil
 
       @sm = StateMachine.new
       TRANSITIONS.each { |t| @sm.transition(*t) }
@@ -136,6 +137,7 @@ module EventMachine::Hiredis
 
     def on_connected(prev_state)
       emit(:connected)
+      @connected_at = Time.now.getutc
       if @reconnect_attempt > 0
         emit(:reconnected)
         @reconnect_attempt = 0
@@ -146,13 +148,17 @@ module EventMachine::Hiredis
       emit(:failed)
     end
 
+    def connected_recently
+      !@connected_at.nil? && (@connected_at + 5) >= Time.now.getutc
+    end
+
     def on_disconnected(prev_state)
       @connection = nil
 
       emit(:disconnected) if prev_state == :connected
       emit(:reconnect_failed, @reconnect_attempt) if @reconnect_attempt > 0
 
-      delay_reconnect = prev_state != :connected
+      delay_reconnect = prev_state != :connected || connected_recently
 
       # External agents have the opportunity to call reconnect and change the
       # state when we emit :disconnected and :reconnected, so we should only
