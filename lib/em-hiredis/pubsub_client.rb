@@ -183,7 +183,7 @@ module EventMachine::Hiredis
         )
 
         connection.on(:connected) {
-          connection.send_command('PING', command, args).callback {
+          connection.send_command(EM::DefaultDeferrable.new, 'PING').callback {
             maybe_auth(connection).callback {
 
               connection.on(:message, &method(:message_callbacks))
