@@ -183,7 +183,9 @@ module EventMachine::Hiredis
         )
 
         connection.on(:connected) {
-          connection.send_command('PING').callback { |pong|
+          PING_CHANNEL = '__em-hiredis-ping'
+          connection.send_command('subscribe', PING_CHANNEL).callback { |pong|
+            connection.send_command('unsubscribe', PING_CHANNEL)
             if pong == 'PONG'
               maybe_auth(connection).callback {
 
