@@ -26,6 +26,7 @@ module EventMachine::Hiredis
     include EventMachine::Deferrable
 
     RESUBSCRIBE_BATCH_SIZE = 1000
+    PING_CHANNEL = '__em-hiredis-ping'
 
     attr_reader :host, :port, :password
 
@@ -183,7 +184,6 @@ module EventMachine::Hiredis
         )
 
         connection.on(:connected) {
-          PING_CHANNEL = '__em-hiredis-ping'
           connection.send_command('subscribe', PING_CHANNEL).callback { |pong|
             connection.send_command('unsubscribe', PING_CHANNEL)
             if pong == 'PONG'
