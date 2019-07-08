@@ -335,6 +335,7 @@ module EventMachine::Hiredis
             # Failure to ping
             connection.close_connection
             df.fail(e)
+          }
         }
 
         connection.on(:connection_failed) {
