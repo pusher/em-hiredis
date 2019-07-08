@@ -183,7 +183,7 @@ module EventMachine::Hiredis
         )
 
         connection.on(:connected) {
-          connection.send_command(EM::DefaultDeferrable.new, 'PING').callback { |pong|
+          connection.send_command('PING').callback { |pong|
             if pong == 'PONG'
               maybe_auth(connection).callback {
 
