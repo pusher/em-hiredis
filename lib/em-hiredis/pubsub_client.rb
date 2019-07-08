@@ -183,37 +183,39 @@ module EventMachine::Hiredis
         )
 
         connection.on(:connected) {
-          connection.send_command(EM::DefaultDeferrable.new, 'PING').callback {
-            maybe_auth(connection).callback {
+          connection.send_command(EM::DefaultDeferrable.new, 'PING').callback { |pong|
+            if pong == 'PONG'
+              maybe_auth(connection).callback {
 
-              connection.on(:message, &method(:message_callbacks))
-              connection.on(:pmessage, &method(:pmessage_callbacks))
+                connection.on(:message, &method(:message_callbacks))
+                connection.on(:pmessage, &method(:pmessage_callbacks))
 
-              [ :message,
-                :pmessage,
-                :subscribe,
-                :unsubscribe,
-                :psubscribe,
-                :punsubscribe
-              ].each do |command|
-                connection.on(command) { |*args|
-                  emit(command, *args)
+                [ :message,
+                  :pmessage,
+                  :subscribe,
+                  :unsubscribe,
+                  :psubscribe,
+                  :punsubscribe
+                ].each do |command|
+                  connection.on(command) { |*args|
+                    emit(command, *args)
+                  }
+                end
+
+                @subscriptions.keys.each_slice(RESUBSCRIBE_BATCH_SIZE) { |slice|
+                  connection.send_command(:subscribe, *slice)
                 }
-              end
+                @psubscriptions.keys.each_slice(RESUBSCRIBE_BATCH_SIZE) { |slice|
+                  connection.send_command(:psubscribe, *slice)
+                }
 
-              @subscriptions.keys.each_slice(RESUBSCRIBE_BATCH_SIZE) { |slice|
-                connection.send_command(:subscribe, *slice)
+                df.succeed(connection)
+              }.errback { |e|
+                # Failure to auth counts as a connection failure
+                connection.close_connection
+                df.fail(e)
               }
-              @psubscriptions.keys.each_slice(RESUBSCRIBE_BATCH_SIZE) { |slice|
-                connection.send_command(:psubscribe, *slice)
-              }
-
-              df.succeed(connection)
-            }.errback { |e|
-              # Failure to auth counts as a connection failure
-              connection.close_connection
-              df.fail(e)
-            }
+            end
           }.errback { |e|
             # Failure to ping
             connection.close_connection
