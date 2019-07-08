@@ -312,7 +312,7 @@ module EventMachine::Hiredis
         )
 
         connection.on(:connected) {
-          connection.send_command(EM::DefaultDeferrable.new, 'PING').callback {
+          connection.send_command(EM::DefaultDeferrable.new, 'PING', '').callback {
             maybe_auth(connection).callback {
               maybe_select(connection).callback {
                 @command_queue.each { |command_df, command, args|
