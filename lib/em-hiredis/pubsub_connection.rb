@@ -119,12 +119,16 @@ module EventMachine::Hiredis
           e.redis_error = reply
           @ping_df.fail(e)
         else
+          EM::Hiredis.logger.debug("*****REPLY=#{reply}")
           @ping_df.succeed(reply)
+          EM::Hiredis.logger.debug("PONG - successfully connected to redis!")
         end
         @ping_df = nil
       else
         type = reply[0]
+        # type = reply.kind_of?(Array) ? reply[0] : reply.downcase
         if PUBSUB_MESSAGES.include?(type)
+          EM::Hiredis.logger.debug("*****REPLY=#{reply}")
           emit(type.to_sym, *reply[1..-1])
         else
           EM::Hiredis.logger.error("#{@name} - unrecognised response: #{reply.inspect}")
@@ -133,4 +137,3 @@ module EventMachine::Hiredis
     end
   end
 end
-
