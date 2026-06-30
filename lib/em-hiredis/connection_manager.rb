@@ -71,7 +71,7 @@ module EventMachine::Hiredis
       when :initial
         connect
       when :connecting
-        @connect_operation.cancel
+        @connect_operation&.cancel
         @sm.update_state(:connecting)
       when :connected
         @connection.close_connection
@@ -85,7 +85,7 @@ module EventMachine::Hiredis
     def close
       case @sm.state
       when :connecting
-        @connect_operation.cancel
+        @connect_operation&.cancel
       when :connected
         @connection.remove_all_listeners(:disconnected)
         @connection.close_connection
