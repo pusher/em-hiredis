@@ -399,4 +399,47 @@ describe EM::Hiredis::ConnectionManager do
       em.remaining_timers.should == 0
     end
   end
+
+  context 'when connecting with no in-flight connect operation' do
+    # Regression test for a nil @connect_operation during the :connecting
+    # state. On a Sentinel +switch-master, RedisClientManager#update_uri calls
+    # reconnect on each async client; if a client was mid-connect before its
+    # connect operation had been recorded, `@connect_operation.cancel` raised
+    # NoMethodError on nil. That aborted the reconnect loop and left the
+    # remaining clients pinned to the old master until a process restart.
+
+    it 'reconnect does not raise' do
+      em = EM::Hiredis::TimeMockEventMachine.new
+      conn_factory = mock('connection factory')
+      manager = EM::Hiredis::ConnectionManager.new(connection_factory: conn_factory, em: em)
+
+      conn_factory.should_receive(:call).at_least(:once).and_return(EM::DefaultDeferrable.new)
+
+      manager.connect
+      manager.state.should == :connecting
+
+      # No connect operation recorded yet for the in-flight connection
+      manager.instance_variable_set(:@connect_operation, nil)
+
+      lambda { manager.reconnect }.should_not raise_error
+      manager.state.should == :connecting
+    end
+
+    it 'close does not raise' do
+      em = EM::Hiredis::TimeMockEventMachine.new
+      conn_factory = mock('connection factory')
+      manager = EM::Hiredis::ConnectionManager.new(connection_factory: conn_factory, em: em)
+
+      conn_factory.should_receive(:call).at_least(:once).and_return(EM::DefaultDeferrable.new)
+
+      manager.connect
+      manager.state.should == :connecting
+
+      # No connect operation recorded yet for the in-flight connection
+      manager.instance_variable_set(:@connect_operation, nil)
+
+      lambda { manager.close }.should_not raise_error
+      manager.state.should == :stopped
+    end
+  end
 end
